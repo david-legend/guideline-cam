@@ -41,7 +41,7 @@ class _DemoHomePageState extends State<DemoHomePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _controller = GuidelineCamController();
     _controller.initialize();
     _tabController.addListener(() {
@@ -130,8 +130,8 @@ class _DemoHomePageState extends State<DemoHomePage>
 
   @override
   Widget build(BuildContext context) {
-    final bool showFab =
-        _tabController.index != 2; // Hide on Overlay Builder tab
+    final bool showFab = ![0, 3].contains(
+        _tabController.index); // Hide on Static API & Overlay Builder tab
     return Scaffold(
       appBar: AppBar(
         title: const Text('GuidelineCam Example'),
@@ -139,6 +139,7 @@ class _DemoHomePageState extends State<DemoHomePage>
           controller: _tabController,
           isScrollable: true,
           tabs: const [
+            Tab(text: 'Static API'),
             Tab(text: 'Basic'),
             Tab(text: 'Custom Buttons'),
             Tab(text: 'Overlay Builder'),
@@ -150,6 +151,18 @@ class _DemoHomePageState extends State<DemoHomePage>
       body: TabBarView(
         controller: _tabController,
         children: [
+          _StaticApiDemo(
+              onCaptured: (x) async {
+                if (x != null) {
+                  await _showCaptureDialog(
+                    file: x,
+                    capturedAt: DateTime.now(),
+                    lens: CameraLensDirection.back,
+                  );
+                }
+              },
+              maskColor: _maskColor,
+              frameColor: _frameColor),
           _BasicDemo(
               controller: _controller,
               onCaptured: (x) async {
@@ -779,6 +792,179 @@ class _InstructionDemo extends StatelessWidget {
         );
       },
       onCapture: (result) => onCaptured(result.file),
+    );
+  }
+}
+
+class _StaticApiDemo extends StatelessWidget {
+  const _StaticApiDemo({
+    required this.onCaptured,
+    required this.maskColor,
+    required this.frameColor,
+  });
+
+  final ValueChanged<XFile?> onCaptured;
+  final Color maskColor;
+  final Color frameColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.camera_alt_outlined,
+                size: 80,
+                color: Colors.teal,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Static API Demo',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tap the button below to capture a photo using the simplified API.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final photo = await GuidelineCam.takePhoto(
+                    context: context,
+                    guideline: GuidelineOverlayConfig(
+                      shape: GuidelineShape.roundedRect,
+                      aspectRatio: 1.586,
+                      frameColor: frameColor,
+                      maskColor: maskColor,
+                      borderRadius: 40,
+                      cornerLength: 0,
+                    ),
+                  );
+                  if (photo != null) {
+                    onCaptured(photo);
+                  }
+                },
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Capture Photo'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 24),
+              const Text(
+                'Try Different Shapes',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  _ShapeButton(
+                    label: 'Circle',
+                    icon: Icons.circle_outlined,
+                    onPressed: () async {
+                      final photo = await GuidelineCam.takePhoto(
+                        context: context,
+                        guideline: GuidelineOverlayConfig(
+                          shape: GuidelineShape.circle,
+                          frameColor: frameColor,
+                          maskColor: maskColor,
+                        ),
+                      );
+                      if (photo != null) {
+                        onCaptured(photo);
+                      }
+                    },
+                  ),
+                  _ShapeButton(
+                    label: 'Oval',
+                    icon: Icons.crop_free,
+                    onPressed: () async {
+                      final photo = await GuidelineCam.takePhoto(
+                        context: context,
+                        guideline: GuidelineOverlayConfig(
+                          shape: GuidelineShape.oval,
+                          aspectRatio: 0.75,
+                          frameColor: frameColor,
+                          maskColor: maskColor,
+                        ),
+                      );
+                      if (photo != null) {
+                        onCaptured(photo);
+                      }
+                    },
+                  ),
+                  _ShapeButton(
+                    label: 'Rectangle',
+                    icon: Icons.crop_square,
+                    onPressed: () async {
+                      final photo = await GuidelineCam.takePhoto(
+                        context: context,
+                        guideline: GuidelineOverlayConfig(
+                          shape: GuidelineShape.rect,
+                          aspectRatio: 1.5,
+                          frameColor: frameColor,
+                          maskColor: maskColor,
+                        ),
+                      );
+                      if (photo != null) {
+                        onCaptured(photo);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShapeButton extends StatelessWidget {
+  const _ShapeButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      ),
     );
   }
 }

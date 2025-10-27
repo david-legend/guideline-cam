@@ -31,7 +31,7 @@ import 'package:guideline_cam/src/shapes.dart';
 ///       frameColor: Colors.white,
 ///       maskColor: Colors.black54,
 ///       showGrid: true,
-///       cornerLength: 20.0,
+///       cornerLength: 0.0,
 ///     ),
 ///   ),
 ///   size: size,

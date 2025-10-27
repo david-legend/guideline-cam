@@ -2,7 +2,7 @@
 
 ## Package Overview
 - **Name**: guideline_cam
-- **Version**: 0.0.1
+- **Version**: 0.0.3
 - **Purpose**: Lightweight Flutter package for camera capture with customizable overlay shapes
 - **Core Value**: Guided camera interface for document/ID/face capture with visual guidelines
 - **Platforms**: Android, iOS
@@ -11,6 +11,7 @@
 ## Core Architecture
 
 ### Main Components
+- `GuidelineCam.takePhoto()` - Static API for simplified camera capture
 - `GuidelineCamBuilder` - Main widget combining camera preview + overlay
 - `GuidelineCamController` - Camera lifecycle, state management, capture operations
 - `GuidelineOverlayConfig` - Single/multi-shape overlay configuration
@@ -63,6 +64,32 @@ GuidelineCamBuilder
 
 ## API Surface
 
+### GuidelineCam (Static API)
+
+```dart
+static Future<XFile?> takePhoto({
+  required BuildContext context,
+  GuidelineOverlayConfig? guideline,
+  CameraLensDirection cameraDirection = CameraLensDirection.back,
+  bool showFlashToggle = true,
+  bool showCameraSwitch = true,
+  Color backgroundColor = Colors.black,
+  Widget Function(BuildContext, GuidelineState)? instructionBuilder,
+})
+```
+
+Simplified API for quick photo capture. Returns `XFile?` containing the captured image, or `null` if cancelled or error occurs.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| context | BuildContext | Yes | - | Build context for navigation |
+| guideline | GuidelineOverlayConfig? | No | Default config | Overlay configuration |
+| cameraDirection | CameraLensDirection | No | CameraLensDirection.back | Initial camera direction |
+| showFlashToggle | bool | No | true | Show flash toggle button |
+| showCameraSwitch | bool | No | true | Show camera switch button |
+| backgroundColor | Color | No | Colors.black | Background color |
+| instructionBuilder | Widget Function(...)? | No | - | Custom instruction widget |
+
 ### GuidelineCamBuilder
 ```dart
 GuidelineCamBuilder({
@@ -105,7 +132,7 @@ const GuidelineOverlayConfig({
   double borderRadius = 12.0,
   Color maskColor = Colors.black54,
   Color frameColor = Colors.white,
-  double cornerLength = 20.0,
+  double cornerLength = 0.0,
   EdgeInsets padding = const EdgeInsets.all(20.0),
   bool showGrid = false,
   bool debugPaint = false,
@@ -122,7 +149,7 @@ const ShapeConfig({
   double strokeWidth = 2.0,
   double borderRadius = 12.0,
   Color frameColor = Colors.white,
-  double cornerLength = 20.0,
+  double cornerLength = 0.0,
   bool showGrid = false,
   List<ShapeConfig>? children,
   ShapePositioning positioning = ShapePositioning.absolute,
@@ -156,7 +183,52 @@ class GuidelineCaptureResult {
 
 ## Usage Patterns
 
-### Basic Setup
+### Simplified Static API (Recommended for Quick Capture)
+
+```dart
+import 'package:guideline_cam/guideline_cam.dart';
+
+// Simple capture with default settings
+final XFile? photo = await GuidelineCam.takePhoto(context: context);
+
+if (photo != null) {
+  // Handle captured photo
+  print('Photo captured: ${photo.path}');
+}
+
+// Capture with custom overlay configuration
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.circle,
+    frameColor: Colors.blue,
+    maskColor: Colors.black54,
+  ),
+);
+
+// Capture with front camera for selfie
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  cameraDirection: CameraLensDirection.front,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.circle,
+  ),
+);
+
+// Capture with custom instructions
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586, // ID card ratio
+  ),
+  instructionBuilder: (context, state) {
+    return Text('Position your ID card');
+  },
+);
+```
+
+### Basic Setup (Full Control)
 ```dart
 class CapturePage extends StatefulWidget {
   @override
@@ -349,7 +421,7 @@ ShapeConfig.inset(
 ### Dependencies
 ```yaml
 dependencies:
-  guideline_cam: ^0.0.1
+  guideline_cam: ^0.0.3
 ```
 
 ### Error Handling

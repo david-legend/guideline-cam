@@ -5,7 +5,6 @@
 [![popularity](https://img.shields.io/pub/popularity/guideline_cam)](https://pub.dev/packages/guideline_cam/score)
 [![likes](https://img.shields.io/pub/likes/guideline_cam)](https://pub.dev/packages/guideline_cam/score)
 
-
 A lightweight Flutter package that helps build guideline camera overlay to capture IDs, documents, or faces.
 Supports **rectangles, rounded rectangles, circles, and ovals** for manual image capture.
 
@@ -13,12 +12,12 @@ Supports **rectangles, rounded rectangles, circles, and ovals** for manual image
 
 ## 🎬 Demo Gallery
 
-|                                                                                  |                                                                  |                                                    |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------- |
-| **Basic Usage**                                                                  | **Custom Button**                                                | **Overlay Builder**                                |
+|                                                                                                                                                     |                                                                                                                                     |                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Basic Usage**                                                                                                                                     | **Custom Button**                                                                                                                   | **Overlay Builder**                                                                                                   |
 | ![Basic Usage](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/basic.gif)                                               | ![Custom Button](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/custom%20button.gif)                   | ![Overlay Builder](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/overlay%20builder.gif) |
-| **Built-in Instruction Builder**                                                 | **Multi & Nested Shape**                                         |                                                    |
-| ![Built-in Instruction Builder](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/built%20in%20instruction%20builder.gif) | ![Multi & Nested Shape](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/multi%20&%20nested%20shape.gif) |                                                    |
+| **Built-in Instruction Builder**                                                                                                                    | **Multi & Nested Shape**                                                                                                            | **Static API**                                                                                                        |
+| ![Built-in Instruction Builder](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/built%20in%20instruction%20builder.gif) | ![Multi & Nested Shape](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/multi%20&%20nested%20shape.gif) | ![Static API](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/static%20api.gif)           |
 
 ---
 
@@ -28,7 +27,7 @@ Supports **rectangles, rounded rectangles, circles, and ovals** for manual image
 
 ```yaml
 dependencies:
-  guideline_cam: ^0.0.1
+  guideline_cam: ^0.0.3
 ```
 
 ### 2. Add permissions
@@ -48,7 +47,38 @@ dependencies:
 <string>We need access to the micrphone to capture your document/ID</string>
 ```
 
-### 3. Basic Usage
+### 3. Quick Capture (Simplified API)
+
+For simple use cases, use the static `takePhoto()` method - no controller management needed:
+
+```dart
+import 'package:guideline_cam/guideline_cam.dart';
+
+// Simple one-liner capture
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586, // ID card ratio
+  ),
+);
+
+// Use front camera for selfie capture
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  cameraDirection: CameraLensDirection.front,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.circle,
+  ),
+);
+
+if (photo != null) {
+  // Handle captured photo
+  print('Photo captured: ${photo.path}');
+}
+```
+
+### 4. Advanced Usage (Full Control)
 
 ```dart
 import 'package:flutter/material.dart';
@@ -402,6 +432,34 @@ Nested shapes support unlimited depth - children can have their own children, cr
 
 ---
 
+## Static API vs Manual Controller
+
+| Feature           | Static API (`GuidelineCam.takePhoto()`) | Manual Controller (`GuidelineCamBuilder`) |
+| ----------------- | --------------------------------------- | ----------------------------------------- |
+| **Setup**         | One method call                         | StatefulWidget + controller lifecycle     |
+| **Boilerplate**   | Minimal                                 | Requires initState/dispose                |
+| **Customization** | Through parameters                      | Full control via builders                 |
+| **Use Case**      | Simple capture scenarios                | Complex UI, custom workflows              |
+| **Return Value**  | `XFile?`                                | `GuidelineCaptureResult` via callback     |
+
+### When to Use Each
+
+**Use Static API when:**
+
+- You need quick photo capture
+- Minimal configuration is enough
+- You don't need advanced UI control
+- You want automatic resource management
+
+**Use Manual Controller when:**
+
+- You need custom UI layouts
+- You want to integrate into existing pages
+- You need advanced state management
+- You want to reuse the controller across multiple captures
+
+---
+
 ## Troubleshooting
 
 - **Flash not supported**: The flash toggle will be hidden if the device does not support it.
@@ -410,6 +468,32 @@ Nested shapes support unlimited depth - children can have their own children, cr
 ---
 
 ## 📚 API Reference
+
+### GuidelineCam (Static API)
+
+```dart
+static Future<XFile?> takePhoto({
+  required BuildContext context,
+  GuidelineOverlayConfig? guideline,
+  CameraLensDirection cameraDirection = CameraLensDirection.back,
+  bool showFlashToggle = true,
+  bool showCameraSwitch = true,
+  Color backgroundColor = Colors.black,
+  Widget Function(BuildContext, GuidelineState)? instructionBuilder,
+})
+```
+
+Simplified API for quick photo capture. Returns `XFile?` containing the captured image, or `null` if cancelled or error occurs.
+
+| Parameter          | Type                    | Required | Default                  | Description                  |
+| ------------------ | ----------------------- | -------- | ------------------------ | ---------------------------- |
+| context            | BuildContext            | Yes      | -                        | Build context for navigation |
+| guideline          | GuidelineOverlayConfig? | No       | Default config           | Overlay configuration        |
+| cameraDirection    | CameraLensDirection     | No       | CameraLensDirection.back | Initial camera direction     |
+| showFlashToggle    | bool                    | No       | true                     | Show flash toggle button     |
+| showCameraSwitch   | bool                    | No       | true                     | Show camera switch button    |
+| backgroundColor    | Color                   | No       | Colors.black             | Background color             |
+| instructionBuilder | Widget Function(...)?   | No       | -                        | Custom instruction widget    |
 
 ### GuidelineCamBuilder
 
@@ -466,7 +550,7 @@ const GuidelineOverlayConfig({
   double borderRadius = 12.0,
   Color maskColor = Colors.black54,
   Color frameColor = Colors.white,
-  double cornerLength = 20.0,
+  double cornerLength = 0.0,
   EdgeInsets padding = const EdgeInsets.all(20.0),
   bool showGrid = false,
   bool debugPaint = false,
@@ -482,7 +566,7 @@ const GuidelineOverlayConfig({
 | borderRadius | double             | No       | 12.0                       | Corner radius for rounded rectangles.      |
 | maskColor    | Color              | No       | Colors.black54             | Mask color outside the frame.              |
 | frameColor   | Color              | No       | Colors.white               | Frame color.                               |
-| cornerLength | double             | No       | 20.0                       | Corner indicator length.                   |
+| cornerLength | double             | No       | 0.0                        | Corner indicator length.                   |
 | padding      | EdgeInsets         | No       | EdgeInsets.all(20.0)       | Padding around the overlay.                |
 | showGrid     | bool               | No       | false                      | Show 3x3 grid.                             |
 | debugPaint   | bool               | No       | false                      | Paint debug visuals.                       |
@@ -505,7 +589,7 @@ const ShapeConfig({
   double strokeWidth = 2.0,
   double borderRadius = 12.0,
   Color frameColor = Colors.white,
-  double cornerLength = 20.0,
+  double cornerLength = 0.0,
   bool showGrid = false,
   List<ShapeConfig>? children,
   ShapePositioning positioning = ShapePositioning.absolute,
@@ -523,7 +607,7 @@ const ShapeConfig({
 | strokeWidth    | double             | No       | 2.0                       | Shape outline thickness.                    |
 | borderRadius   | double             | No       | 12.0                      | Corner radius for rounded rectangles.       |
 | frameColor     | Color              | No       | Colors.white              | Outline color.                              |
-| cornerLength   | double             | No       | 20.0                      | Corner indicator length.                    |
+| cornerLength   | double             | No       | 0.0                       | Corner indicator length.                    |
 | showGrid       | bool               | No       | false                     | Show 3x3 grid inside the shape.             |
 | children       | List<ShapeConfig>? | No       | null                      | Optional child shapes.                      |
 | positioning    | ShapePositioning   | No       | ShapePositioning.absolute | Child positioning mode.                     |
@@ -587,7 +671,6 @@ Reference the [`llms.txt`](https://github.com/ricky-irfandi/guideline-cam/blob/m
 - Complete API documentation and usage examples
 - Architecture overview and configuration guides
 - Best practices and troubleshooting tips
-
 
 ### Example Prompts
 

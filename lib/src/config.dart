@@ -20,7 +20,7 @@ import 'package:guideline_cam/src/multi_shape_config.dart';
 ///   maskColor: Colors.black54,
 ///   strokeWidth: 2.0,
 ///   borderRadius: 12.0,
-///   cornerLength: 20.0,
+///   cornerLength: 0.0,
 ///   showGrid: true,
 /// )
 /// ```
@@ -71,7 +71,7 @@ class GuidelineOverlayConfig {
     this.borderRadius = 12.0,
     this.maskColor = Colors.black54,
     this.frameColor = Colors.white,
-    this.cornerLength = 20.0,
+    this.cornerLength = 0.0,
     this.padding = const EdgeInsets.all(20.0),
     this.showGrid = false,
     this.debugPaint = false,
@@ -196,13 +196,13 @@ class GuidelineOverlayConfig {
   ///
   /// Example:
   /// ```dart
-  /// cornerLength: 0.0,   // No corner indicators
+  /// cornerLength: 0.0,   // No corner indicators (default)
   /// cornerLength: 15.0,  // Short corner indicators
-  /// cornerLength: 20.0,  // Standard length (default)
+  /// cornerLength: 20.0,  // Standard length
   /// cornerLength: 30.0,  // Long corner indicators
   /// ```
   ///
-  /// Must be non-negative. Defaults to 20.0.
+  /// Must be non-negative. Defaults to 0.0.
   final double cornerLength;
 
   /// The padding around the guideline overlay from the screen edges.

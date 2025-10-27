@@ -116,6 +116,25 @@ class GuidelineCamController extends ChangeNotifier {
   /// The current camera lens direction.
   CameraLensDirection _lensDirection = CameraLensDirection.back;
 
+  /// Creates a new [GuidelineCamController] with optional initial camera direction.
+  ///
+  /// Parameters:
+  /// * [initialCameraDirection] - The initial camera direction to use. Defaults to `CameraLensDirection.back`.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Default back camera
+  /// final controller = GuidelineCamController();
+  ///
+  /// // Start with front camera
+  /// final controller = GuidelineCamController(
+  ///   initialCameraDirection: CameraLensDirection.front,
+  /// );
+  /// ```
+  GuidelineCamController({
+    CameraLensDirection initialCameraDirection = CameraLensDirection.back,
+  }) : _lensDirection = initialCameraDirection;
+
   /// The underlying camera controller from the camera package.
   ///
   /// This provides direct access to the [CameraController] for advanced

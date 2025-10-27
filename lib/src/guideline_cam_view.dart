@@ -555,22 +555,30 @@ class _GuidelineCamBuilderState extends State<GuidelineCamBuilder> {
                     await widget.controller.setFlashMode(newMode);
                   },
                 )
-              : FloatingActionButton.small(
-                  onPressed: () async {
+              : GestureDetector(
+                  onTap: () async {
                     final currentMode = widget.controller.flashMode;
                     final newMode = currentMode == FlashMode.off
                         ? FlashMode.always
                         : FlashMode.off;
                     await widget.controller.setFlashMode(newMode);
                   },
-                  backgroundColor: widget.controller.flashMode == FlashMode.off
-                      ? Colors.black54
-                      : Colors.amber,
-                  child: Icon(
-                    widget.controller.flashMode == FlashMode.off
-                        ? Icons.flash_off
-                        : Icons.flash_on,
-                    color: Colors.white,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.controller.flashMode == FlashMode.off
+                          ? Colors.black54
+                          : Colors.amber,
+                    ),
+                    child: Icon(
+                      widget.controller.flashMode == FlashMode.off
+                          ? Icons.flash_off
+                          : Icons.flash_on,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
         ),
@@ -587,14 +595,22 @@ class _GuidelineCamBuilderState extends State<GuidelineCamBuilder> {
                     await widget.controller.switchCamera();
                   },
                 )
-              : FloatingActionButton.small(
-                  onPressed: () async {
+              : GestureDetector(
+                  onTap: () async {
                     await widget.controller.switchCamera();
                   },
-                  backgroundColor: Colors.black54,
-                  child: const Icon(
-                    Icons.switch_camera,
-                    color: Colors.white,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black54,
+                    ),
+                    child: const Icon(
+                      Icons.switch_camera,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
         ),
