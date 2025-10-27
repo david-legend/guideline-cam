@@ -82,6 +82,7 @@ export 'package:camera/camera.dart'
 export 'src/config.dart';
 export 'src/controller.dart';
 export 'src/enums.dart';
+export 'src/guideline_cam_static.dart';
 export 'src/guideline_cam_view.dart';
 export 'src/multi_shape_config.dart';
 export 'src/results.dart';
