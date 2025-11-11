@@ -42,7 +42,7 @@ Supports **rectangles, rounded rectangles, circles, and ovals** with **automatic
 
 ```yaml
 dependencies:
-  guideline_cam: ^0.1.0
+  guideline_cam: ^0.1.0+2
 ```
 
 ### 2. Add permissions

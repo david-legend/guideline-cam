@@ -5,10 +5,10 @@ import 'package:guideline_cam/guideline_cam.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   GuidelineCam.configureLogging(LoggerConfig.verbose);
   GuidelineCam.enablePerformanceTiming = true;
-  
+
   runApp(const GuidelineCamDemoApp());
 }
 

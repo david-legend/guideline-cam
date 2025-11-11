@@ -163,7 +163,8 @@ class GuidelineCam {
       cropConfig: enableCrop
           ? baseConfig.cropConfig.copyWith(
               enabled: true,
-              strategy: CropStrategy.outermost, // Force outermost for single file result
+              strategy: CropStrategy
+                  .outermost, // Force outermost for single file result
             )
           : const CropConfig(enabled: false),
       // Override processing config based on enableProcessing parameter

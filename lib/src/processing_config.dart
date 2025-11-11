@@ -52,17 +52,17 @@ class ImageProcessingConfig {
     this.sharpen = false,
     this.sharpenStrength = 1.0,
     this.quality = 85,
-  }) : assert(brightness >= -1.0 && brightness <= 1.0,
+  })  : assert(brightness >= -1.0 && brightness <= 1.0,
             'Brightness must be between -1.0 and 1.0'),
-       assert(contrast >= -1.0 && contrast <= 1.0,
+        assert(contrast >= -1.0 && contrast <= 1.0,
             'Contrast must be between -1.0 and 1.0'),
-       assert(saturation >= -1.0 && saturation <= 1.0,
+        assert(saturation >= -1.0 && saturation <= 1.0,
             'Saturation must be between -1.0 and 1.0'),
-       assert(noiseReductionStrength >= 1 && noiseReductionStrength <= 10,
+        assert(noiseReductionStrength >= 1 && noiseReductionStrength <= 10,
             'Noise reduction strength must be between 1 and 10'),
-       assert(sharpenStrength >= 0.0 && sharpenStrength <= 2.0,
+        assert(sharpenStrength >= 0.0 && sharpenStrength <= 2.0,
             'Sharpen strength must be between 0.0 and 2.0'),
-       assert(quality >= 0 && quality <= 100,
+        assert(quality >= 0 && quality <= 100,
             'Quality must be between 0 and 100');
 
   /// Creates a copy of this config with the given fields replaced.

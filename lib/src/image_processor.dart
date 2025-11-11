@@ -53,7 +53,8 @@ class ImageProcessor {
 
     img.Image? image = img.decodeImage(bytes);
     if (image == null) {
-      throw Exception('Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
+      throw Exception(
+          'Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
     }
 
     // Downsample if image is too large to prevent OOM
@@ -188,7 +189,8 @@ class ImageProcessor {
     required int height,
   }) async {
     if (width <= 0 || height <= 0) {
-      throw Exception('Invalid crop dimensions: width=$width, height=$height. Both must be positive.');
+      throw Exception(
+          'Invalid crop dimensions: width=$width, height=$height. Both must be positive.');
     }
 
     final bytes = await file.readAsBytes();
@@ -198,7 +200,8 @@ class ImageProcessor {
 
     img.Image? image = img.decodeImage(bytes);
     if (image == null) {
-      throw Exception('Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
+      throw Exception(
+          'Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
     }
 
     // Downsample if image is too large to prevent OOM
@@ -211,18 +214,16 @@ class ImageProcessor {
     final cropHeight = math.min(height, image.height - cropY);
 
     // Validate adjusted crop region
-    if (cropWidth < minValidCropDimension || cropHeight < minValidCropDimension) {
+    if (cropWidth < minValidCropDimension ||
+        cropHeight < minValidCropDimension) {
       throw Exception(
-        'Invalid crop region after bounds adjustment: $cropWidth×$cropHeight. '
-        'Original request: ($x, $y, $width×$height), Image: ${image.width}×${image.height}'
-      );
+          'Invalid crop region after bounds adjustment: $cropWidth×$cropHeight. '
+          'Original request: ($x, $y, $width×$height), Image: ${image.width}×${image.height}');
     }
 
     if (cropX + cropWidth > image.width || cropY + cropHeight > image.height) {
-      throw Exception(
-        'Crop region exceeds image bounds: '
-        'region ($cropX, $cropY, $cropWidth×$cropHeight) vs image ${image.width}×${image.height}'
-      );
+      throw Exception('Crop region exceeds image bounds: '
+          'region ($cropX, $cropY, $cropWidth×$cropHeight) vs image ${image.width}×${image.height}');
     }
 
     final cropped = img.copyCrop(
@@ -261,7 +262,8 @@ class ImageProcessor {
 
     img.Image? image = img.decodeImage(bytes);
     if (image == null) {
-      throw Exception('Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
+      throw Exception(
+          'Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
     }
 
     // Create a new image with transparency
@@ -282,7 +284,10 @@ class ImageProcessor {
           final srcX = centerX + dx;
           final srcY = centerY + dy;
 
-          if (srcX >= 0 && srcX < image.width && srcY >= 0 && srcY < image.height) {
+          if (srcX >= 0 &&
+              srcX < image.width &&
+              srcY >= 0 &&
+              srcY < image.height) {
             final pixel = image.getPixel(srcX, srcY);
             result.setPixel(x, y, pixel);
           }
@@ -360,7 +365,8 @@ img.Image _sharpenIsolate(_SharpenParams params) {
         255,
       );
 
-      sharpened.setPixelRgba(x, y, r.round(), g.round(), b.round(), original.a.round());
+      sharpened.setPixelRgba(
+          x, y, r.round(), g.round(), b.round(), original.a.round());
     }
   }
 
@@ -379,8 +385,9 @@ img.Image _autoEnhanceIsolate(_AutoEnhanceParams params) {
     for (int x = 0; x < image.width; x++) {
       final pixel = image.getPixel(x, y);
       final luminance = (ImageProcessor.luminanceRedCoeff * pixel.r +
-          ImageProcessor.luminanceGreenCoeff * pixel.g +
-          ImageProcessor.luminanceBlueCoeff * pixel.b).round();
+              ImageProcessor.luminanceGreenCoeff * pixel.g +
+              ImageProcessor.luminanceBlueCoeff * pixel.b)
+          .round();
       histogram[luminance.clamp(0, 255)]++;
       totalPixels++;
     }
@@ -393,10 +400,12 @@ img.Image _autoEnhanceIsolate(_AutoEnhanceParams params) {
 
   for (int i = 0; i < 256; i++) {
     accumulated += histogram[i];
-    if (accumulated > totalPixels * ImageProcessor.histogramLowPercentile && minLevel == 0) {
+    if (accumulated > totalPixels * ImageProcessor.histogramLowPercentile &&
+        minLevel == 0) {
       minLevel = i;
     }
-    if (accumulated > totalPixels * ImageProcessor.histogramHighPercentile && maxLevel == 255) {
+    if (accumulated > totalPixels * ImageProcessor.histogramHighPercentile &&
+        maxLevel == 255) {
       maxLevel = i;
       break;
     }
@@ -441,7 +450,8 @@ img.Image _autoLevelsIsolate(_AutoLevelsParams params) {
         255,
       );
 
-      result.setPixelRgba(x, y, r.round(), g.round(), b.round(), pixel.a.round());
+      result.setPixelRgba(
+          x, y, r.round(), g.round(), b.round(), pixel.a.round());
     }
   }
 

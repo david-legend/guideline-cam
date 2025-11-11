@@ -575,29 +575,29 @@ class GuidelineCamController extends ChangeNotifier {
     // Validate bounds
     if (bounds.width <= 0 || bounds.height <= 0) {
       throw ArgumentError(
-        'Invalid overlay bounds: width and height must be positive. '
-        'Got: ${bounds.width}×${bounds.height}'
-      );
+          'Invalid overlay bounds: width and height must be positive. '
+          'Got: ${bounds.width}×${bounds.height}');
     }
-    if (bounds.width.isNaN || bounds.height.isNaN ||
-        bounds.width.isInfinite || bounds.height.isInfinite) {
+    if (bounds.width.isNaN ||
+        bounds.height.isNaN ||
+        bounds.width.isInfinite ||
+        bounds.height.isInfinite) {
       throw ArgumentError(
-        'Invalid overlay bounds: contains NaN or Infinity values'
-      );
+          'Invalid overlay bounds: contains NaN or Infinity values');
     }
 
     // Validate screen size
     if (screenSize.width <= 0 || screenSize.height <= 0) {
       throw ArgumentError(
-        'Invalid screen size: width and height must be positive. '
-        'Got: ${screenSize.width}×${screenSize.height}'
-      );
+          'Invalid screen size: width and height must be positive. '
+          'Got: ${screenSize.width}×${screenSize.height}');
     }
-    if (screenSize.width.isNaN || screenSize.height.isNaN ||
-        screenSize.width.isInfinite || screenSize.height.isInfinite) {
+    if (screenSize.width.isNaN ||
+        screenSize.height.isNaN ||
+        screenSize.width.isInfinite ||
+        screenSize.height.isInfinite) {
       throw ArgumentError(
-        'Invalid screen size: contains NaN or Infinity values'
-      );
+          'Invalid screen size: contains NaN or Infinity values');
     }
 
     // Validate shape bounds if provided
@@ -606,15 +606,15 @@ class GuidelineCamController extends ChangeNotifier {
         final shape = shapeBounds[i];
         if (shape.width <= 0 || shape.height <= 0) {
           throw ArgumentError(
-            'Invalid shape bounds at index $i: width and height must be positive. '
-            'Got: ${shape.width}×${shape.height}'
-          );
+              'Invalid shape bounds at index $i: width and height must be positive. '
+              'Got: ${shape.width}×${shape.height}');
         }
-        if (shape.width.isNaN || shape.height.isNaN ||
-            shape.width.isInfinite || shape.height.isInfinite) {
+        if (shape.width.isNaN ||
+            shape.height.isNaN ||
+            shape.width.isInfinite ||
+            shape.height.isInfinite) {
           throw ArgumentError(
-            'Invalid shape bounds at index $i: contains NaN or Infinity values'
-          );
+              'Invalid shape bounds at index $i: contains NaN or Infinity values');
         }
       }
     }
@@ -659,14 +659,16 @@ class GuidelineCamController extends ChangeNotifier {
   /// If cancelled, the operation will stop immediately and cleanup any temporary files.
   Future<GuidelineCaptureResult?> captureWithProcessing() async {
     // Wrap in cancelable operation for cancellation support
-    _processingOperation = CancelableOperation.fromFuture(_captureWithProcessingInternal());
+    _processingOperation =
+        CancelableOperation.fromFuture(_captureWithProcessingInternal());
 
     try {
       final result = await _processingOperation!.value;
       return result;
     } catch (e) {
       // Operation was cancelled or failed
-      GuidelineCamLogger.warn('Capture operation cancelled or failed', error: e);
+      GuidelineCamLogger.warn('Capture operation cancelled or failed',
+          error: e);
       return null;
     } finally {
       _processingOperation = null;
@@ -703,7 +705,8 @@ class GuidelineCamController extends ChangeNotifier {
           finalFile = croppedFiles.first;
         } else {
           // Empty result indicates failure
-          cropError = Exception('Cropping failed: no valid crop region detected');
+          cropError =
+              Exception('Cropping failed: no valid crop region detected');
         }
       } catch (e) {
         cropError = e is Exception ? e : Exception('Cropping failed: $e');
@@ -726,7 +729,8 @@ class GuidelineCamController extends ChangeNotifier {
         // Track temp file for cleanup
         await _addTempFile(processedFile.path);
       } catch (e) {
-        processingError = e is Exception ? e : Exception('Processing failed: $e');
+        processingError =
+            e is Exception ? e : Exception('Processing failed: $e');
         GuidelineCamLogger.error('Processing failed', error: e);
         // Continue with unprocessed file if processing fails
       }
@@ -752,10 +756,8 @@ class GuidelineCamController extends ChangeNotifier {
     final List<XFile> results = [];
 
     if (_overlayBounds == null || _screenSize == null) {
-      throw Exception(
-        'Cannot crop: overlay bounds or screen size not set. '
-        'This usually indicates the camera preview was not fully initialized before capture.'
-      );
+      throw Exception('Cannot crop: overlay bounds or screen size not set. '
+          'This usually indicates the camera preview was not fully initialized before capture.');
     }
 
     try {
@@ -767,7 +769,8 @@ class GuidelineCamController extends ChangeNotifier {
 
       var image = img.decodeImage(bytes);
       if (image == null) {
-        throw Exception('Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
+        throw Exception(
+            'Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
       }
 
       // Downsample if image is too large to prevent OOM
@@ -802,13 +805,16 @@ class GuidelineCamController extends ChangeNotifier {
           _shapeBounds != null &&
           _shapeBounds!.isNotEmpty) {
         // Crop each shape individually
-        GuidelineCamLogger.debug('Starting multi-crop operation with ${_shapeBounds!.length} shapes');
-        GuidelineCamLogger.verbose('Multi-crop - Image dimensions: ${image.width}×${image.height}');
+        GuidelineCamLogger.debug(
+            'Starting multi-crop operation with ${_shapeBounds!.length} shapes');
+        GuidelineCamLogger.verbose(
+            'Multi-crop - Image dimensions: ${image.width}×${image.height}');
 
         for (int i = 0; i < _shapeBounds!.length; i++) {
           final shapeBound = _shapeBounds![i];
 
-          GuidelineCamLogger.verbose('Shape ${i + 1} - Screen bounds: ${shapeBound.width.toInt()}×${shapeBound.height.toInt()} at (${shapeBound.left.toInt()}, ${shapeBound.top.toInt()})');
+          GuidelineCamLogger.verbose(
+              'Shape ${i + 1} - Screen bounds: ${shapeBound.width.toInt()}×${shapeBound.height.toInt()} at (${shapeBound.left.toInt()}, ${shapeBound.top.toInt()})');
 
           // Map shape coordinates to image coordinates
           var cropX = (shapeBound.left * scale + offsetX - config.padding)
@@ -823,20 +829,20 @@ class GuidelineCamController extends ChangeNotifier {
           // Validate crop region
           if (cropWidth < minCropDimension || cropHeight < minCropDimension) {
             throw Exception(
-              'Crop region too small for shape ${i + 1}: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
-              'The guideline may be positioned outside the camera frame or the padding is too large.'
-            );
+                'Crop region too small for shape ${i + 1}: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
+                'The guideline may be positioned outside the camera frame or the padding is too large.');
           }
 
-          if (cropX + cropWidth > image.width || cropY + cropHeight > image.height) {
+          if (cropX + cropWidth > image.width ||
+              cropY + cropHeight > image.height) {
             throw Exception(
-              'Crop region exceeds image bounds for shape ${i + 1}: '
-              'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
-              'vs image ${image.width}×${image.height}'
-            );
+                'Crop region exceeds image bounds for shape ${i + 1}: '
+                'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
+                'vs image ${image.width}×${image.height}');
           }
 
-          GuidelineCamLogger.verbose('Shape ${i + 1} - Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
+          GuidelineCamLogger.verbose(
+              'Shape ${i + 1} - Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
 
           // Crop the shape
           final croppedImage = img.copyCrop(
@@ -847,10 +853,12 @@ class GuidelineCamController extends ChangeNotifier {
             height: cropHeight.round(),
           );
 
-          GuidelineCamLogger.verbose('Shape ${i + 1} - Result: ${croppedImage.width}×${croppedImage.height}');
+          GuidelineCamLogger.verbose(
+              'Shape ${i + 1} - Result: ${croppedImage.width}×${croppedImage.height}');
 
           // Save to file
-          final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
+          final croppedBytes =
+              img.encodeJpg(croppedImage, quality: defaultCropQuality);
           final tempDir = Directory.systemTemp;
           final timestamp = DateTime.now().millisecondsSinceEpoch;
           final tempFile =
@@ -867,9 +875,12 @@ class GuidelineCamController extends ChangeNotifier {
       } else {
         // Crop using combined bounds (outermost strategy)
         GuidelineCamLogger.debug('Starting auto-crop operation');
-        GuidelineCamLogger.verbose('Auto-crop - Image: ${image.width}×${image.height}, Screen: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
-        GuidelineCamLogger.verbose('Auto-crop - Sensor orientation: $sensorOrientation°');
-        GuidelineCamLogger.verbose('Auto-crop - Scale: X=$scaleX, Y=$scaleY, uniform=$scale, Offset: ($offsetX, $offsetY)');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Image: ${image.width}×${image.height}, Screen: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Sensor orientation: $sensorOrientation°');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Scale: X=$scaleX, Y=$scaleY, uniform=$scale, Offset: ($offsetX, $offsetY)');
 
         // STEP 4: Map guideline coordinates to image coordinates
         var cropX = (_overlayBounds!.left * scale + offsetX - config.padding)
@@ -884,21 +895,21 @@ class GuidelineCamController extends ChangeNotifier {
         // Validate crop region
         if (cropWidth < minCropDimension || cropHeight < minCropDimension) {
           throw Exception(
-            'Crop region too small: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
-            'The guideline may be positioned outside the camera frame or the padding is too large.'
-          );
+              'Crop region too small: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
+              'The guideline may be positioned outside the camera frame or the padding is too large.');
         }
 
-        if (cropX + cropWidth > image.width || cropY + cropHeight > image.height) {
-          throw Exception(
-            'Crop region exceeds image bounds: '
-            'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
-            'vs image ${image.width}×${image.height}'
-          );
+        if (cropX + cropWidth > image.width ||
+            cropY + cropHeight > image.height) {
+          throw Exception('Crop region exceeds image bounds: '
+              'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
+              'vs image ${image.width}×${image.height}');
         }
 
-        GuidelineCamLogger.verbose('Auto-crop - Region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
-      GuidelineCamLogger.verbose('Auto-crop - Aspect ratio: ${(cropWidth / cropHeight).toStringAsFixed(3)}');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Aspect ratio: ${(cropWidth / cropHeight).toStringAsFixed(3)}');
 
         // STEP 5: Crop the image
         final croppedImage = img.copyCrop(
@@ -909,10 +920,12 @@ class GuidelineCamController extends ChangeNotifier {
           height: cropHeight.round(),
         );
 
-        GuidelineCamLogger.verbose('Auto-crop - Result: ${croppedImage.width}×${croppedImage.height}, Aspect ratio: ${(croppedImage.width / croppedImage.height).toStringAsFixed(3)}');
+        GuidelineCamLogger.verbose(
+            'Auto-crop - Result: ${croppedImage.width}×${croppedImage.height}, Aspect ratio: ${(croppedImage.width / croppedImage.height).toStringAsFixed(3)}');
 
         // Save to file
-        final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
+        final croppedBytes =
+            img.encodeJpg(croppedImage, quality: defaultCropQuality);
         final tempDir = Directory.systemTemp;
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final tempFile = File('${tempDir.path}/cropped_$timestamp.jpg');
@@ -924,7 +937,8 @@ class GuidelineCamController extends ChangeNotifier {
         results.add(XFile(tempFile.path));
       }
     } catch (e, stackTrace) {
-      GuidelineCamLogger.error('Auto-crop failed', error: e, stackTrace: stackTrace);
+      GuidelineCamLogger.error('Auto-crop failed',
+          error: e, stackTrace: stackTrace);
     }
 
     return results;

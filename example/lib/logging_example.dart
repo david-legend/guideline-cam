@@ -88,7 +88,8 @@ class LoggingExampleWidget extends StatelessWidget {
               onPressed: () {
                 GuidelineCam.configureLogging(LoggerConfig.production);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Production logging configured')),
+                  const SnackBar(
+                      content: Text('Production logging configured')),
                 );
               },
               child: const Text('Configure Production Logging'),
@@ -98,7 +99,8 @@ class LoggingExampleWidget extends StatelessWidget {
               onPressed: () {
                 GuidelineCam.configureLogging(LoggerConfig.development);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Development logging configured')),
+                  const SnackBar(
+                      content: Text('Development logging configured')),
                 );
               },
               child: const Text('Configure Development Logging'),

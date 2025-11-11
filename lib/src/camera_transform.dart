@@ -96,10 +96,14 @@ class CameraTransform {
     final needsRotation = sensorOrientation == 90 || sensorOrientation == 270;
 
     // Determine which dimensions to use based on rotation
-    final effectivePreviewWidth = needsRotation ? previewSize.height : previewSize.width;
-    final effectivePreviewHeight = needsRotation ? previewSize.width : previewSize.height;
-    final effectiveCaptureWidth = needsRotation ? captureSize.height : captureSize.width;
-    final effectiveCaptureHeight = needsRotation ? captureSize.width : captureSize.height;
+    final effectivePreviewWidth =
+        needsRotation ? previewSize.height : previewSize.width;
+    final effectivePreviewHeight =
+        needsRotation ? previewSize.width : previewSize.height;
+    final effectiveCaptureWidth =
+        needsRotation ? captureSize.height : captureSize.width;
+    final effectiveCaptureHeight =
+        needsRotation ? captureSize.width : captureSize.height;
 
     // Calculate scale factors - use UNIFORM scaling to preserve aspect ratio
     // Use the minimum scale to ensure the overlay fits within the captured image
@@ -127,15 +131,18 @@ class CameraTransform {
 
       case 180:
         // Rotate 180°: x' = width - x, y' = height - y
-        left = (previewSize.width - screenBounds.right) * uniformScale + offsetX;
-        top = (previewSize.height - screenBounds.bottom) * uniformScale + offsetY;
+        left =
+            (previewSize.width - screenBounds.right) * uniformScale + offsetX;
+        top =
+            (previewSize.height - screenBounds.bottom) * uniformScale + offsetY;
         width = screenBounds.width * uniformScale;
         height = screenBounds.height * uniformScale;
         break;
 
       case 270:
         // Rotate 270° clockwise (90° counter-clockwise): x' = height - y, y' = x
-        left = (previewSize.height - screenBounds.bottom) * uniformScale + offsetX;
+        left =
+            (previewSize.height - screenBounds.bottom) * uniformScale + offsetX;
         top = screenBounds.left * uniformScale + offsetY;
         width = screenBounds.height * uniformScale;
         height = screenBounds.width * uniformScale;

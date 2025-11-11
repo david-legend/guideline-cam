@@ -48,9 +48,9 @@ class GuidelineCamLogger {
       return const LoggerConfig(
         enabled: true,
         level: LogLevel.error, // Only errors in release
-        useConsole: false,      // No console pollution in release
+        useConsole: false, // No console pollution in release
         includeStackTrace: false, // No stack traces in release
-        logInRelease: true,    // Log even in release (for errors only)
+        logInRelease: true, // Log even in release (for errors only)
       );
     }
   }
@@ -103,7 +103,8 @@ class GuidelineCamLogger {
   }
 
   /// Performance logging with timing
-  static T time<T>(String operation, T Function() func, {bool logInRelease = false}) {
+  static T time<T>(String operation, T Function() func,
+      {bool logInRelease = false}) {
     if (!_config.enabled || (!kDebugMode && !logInRelease)) {
       return func();
     }
@@ -120,7 +121,8 @@ class GuidelineCamLogger {
   }
 
   /// Internal logging method
-  static void _log(String level, String message, {Object? error, StackTrace? stackTrace}) {
+  static void _log(String level, String message,
+      {Object? error, StackTrace? stackTrace}) {
     final timestamp = DateTime.now().toIso8601String();
     final logMessage = '[$timestamp] $level: $message';
 
@@ -230,14 +232,19 @@ class LoggerConfig {
 enum LogLevel {
   /// No logging
   off(0),
+
   /// Only errors
   error(1),
+
   /// Errors and warnings
   warn(2),
+
   /// Errors, warnings, and info
   info(3),
+
   /// Most messages including debug
   debug(4),
+
   /// All messages including verbose
   verbose(5);
 

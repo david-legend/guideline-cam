@@ -35,7 +35,8 @@ class CropConfig {
     this.mode = CropMode.guideline,
     this.strategy = CropStrategy.outermost,
     this.padding = 0.0,
-  }) : assert(padding >= 0.0 && padding <= 1000.0,
+  }) : assert(
+            padding >= 0.0 && padding <= 1000.0,
             'Padding must be between 0 and 1000 pixels. '
             'Large padding values can cause crop regions to become invalid.');
 

@@ -71,7 +71,9 @@ class _GuidelineCamPageState extends State<GuidelineCamPage> {
       if (result != null && mounted) {
         // Return the final processed/cropped file, or original if no processing
         Navigator.of(context).pop(result.processedFile ??
-            (result.croppedFiles.isNotEmpty ? result.croppedFiles.first : result.file));
+            (result.croppedFiles.isNotEmpty
+                ? result.croppedFiles.first
+                : result.file));
       }
     } catch (e) {
       // Handle capture error silently or show a snackbar
