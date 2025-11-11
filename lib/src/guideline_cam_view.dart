@@ -502,11 +502,20 @@ class _GuidelineCamBuilderState extends State<GuidelineCamBuilder> {
   @override
   void initState() {
     super.initState();
+    // Set the config for cropping and processing
+    widget.controller.setConfig(widget.guideline);
     widget.controller.addListener(() {
       if (mounted) {
         setState(() {});
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(GuidelineCamBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update config when widget rebuilds (e.g., processing preset change)
+    widget.controller.setConfig(widget.guideline);
   }
 
   @override
@@ -631,14 +640,28 @@ class _GuidelineCamBuilderState extends State<GuidelineCamBuilder> {
       final multiShapeConfig = widget.guideline.toMultiShapeConfig();
       if (multiShapeConfig != null) {
         return CustomPaint(
-          painter: MultiShapeOverlayPainter(multiShapeConfig),
+          painter: MultiShapeOverlayPainter(
+            multiShapeConfig,
+            onBoundsCalculated: (bounds, size, {shapeBounds}) {
+              widget.controller.setOverlayBounds(
+                bounds,
+                size,
+                shapeBounds: shapeBounds,
+              );
+            },
+          ),
         );
       }
     }
 
     // Fall back to single shape overlay
     return CustomPaint(
-      painter: OverlayPainter(widget.guideline),
+      painter: OverlayPainter(
+        widget.guideline,
+        onBoundsCalculated: (bounds, size) {
+          widget.controller.setOverlayBounds(bounds, size);
+        },
+      ),
     );
   }
 }

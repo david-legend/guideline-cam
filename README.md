@@ -6,7 +6,19 @@
 [![likes](https://img.shields.io/pub/likes/guideline_cam)](https://pub.dev/packages/guideline_cam/score)
 
 A lightweight Flutter package that helps build guideline camera overlay to capture IDs, documents, or faces.
-Supports **rectangles, rounded rectangles, circles, and ovals** for manual image capture.
+Supports **rectangles, rounded rectangles, circles, and ovals** with **automatic cropping and image processing**.
+
+## ✨ Key Features
+
+- 📐 **Multiple Overlay Shapes**: Rectangle, rounded rectangle, circle, and oval
+- ✂️ **Auto-Crop**: Automatically crop to guideline boundaries with thread-safe operations
+- 🖼️ **Image Processing**: Grayscale, brightness, contrast, saturation, noise reduction, sharpening (isolate-based)
+- 🎯 **Multi-Shape Support**: Complex overlays with nested shapes
+- 🎨 **Fully Customizable**: Colors, stroke width, corner indicators
+- 📱 **Static API**: Simple one-liner for quick captures
+- 🎮 **Builder Pattern**: Complete control over UI components
+- 🪶 **Lightweight**: Pure Dart, minimal dependencies
+- 🔒 **Robust**: Thread-safe, cancellable operations, comprehensive error handling
 
 ---
 
@@ -18,6 +30,8 @@ Supports **rectangles, rounded rectangles, circles, and ovals** for manual image
 | ![Basic Usage](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/basic.gif)                                               | ![Custom Button](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/custom%20button.gif)                   | ![Overlay Builder](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/overlay%20builder.gif) |
 | **Built-in Instruction Builder**                                                                                                                    | **Multi & Nested Shape**                                                                                                            | **Static API**                                                                                                        |
 | ![Built-in Instruction Builder](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/built%20in%20instruction%20builder.gif) | ![Multi & Nested Shape](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/multi%20&%20nested%20shape.gif) | ![Static API](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/static%20api.gif)           |
+| **Auto-Crop & Processing**                                                                                                                         |                                                                                                                                     |                                                                                                                       |
+| ![Auto-Crop & Processing](https://raw.githubusercontent.com/ricky-irfandi/guideline-cam/main/snapshot/autocrop.gif)                                 |                                                                                                                                     |                                                                                                                       |
 
 ---
 
@@ -27,7 +41,7 @@ Supports **rectangles, rounded rectangles, circles, and ovals** for manual image
 
 ```yaml
 dependencies:
-  guideline_cam: ^0.0.3
+  guideline_cam: ^0.0.4
 ```
 
 ### 2. Add permissions
@@ -54,12 +68,34 @@ For simple use cases, use the static `takePhoto()` method - no controller manage
 ```dart
 import 'package:guideline_cam/guideline_cam.dart';
 
-// Simple one-liner capture
+// Simple one-liner capture (no crop or processing)
 final XFile? photo = await GuidelineCam.takePhoto(
   context: context,
   guideline: GuidelineOverlayConfig(
     shape: GuidelineShape.roundedRect,
     aspectRatio: 1.586, // ID card ratio
+  ),
+);
+
+// With automatic cropping enabled
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  enableCrop: true,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586,
+  ),
+);
+
+// With both crop and processing for ID cards
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  enableCrop: true,
+  enableProcessing: true,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586,
+    processing: ImageProcessingConfig.idCard,
   ),
 );
 
@@ -161,6 +197,93 @@ guideline: GuidelineOverlayConfig(
   maskColor: Colors.black54,
 ),
 ```
+
+---
+
+## ✂️ Auto-Crop & Image Processing
+
+**New in v0.0.4!** Automatically crop and enhance captured images.
+
+### Auto-Crop Modes
+
+```dart
+// Guideline-based crop (default)
+GuidelineOverlayConfig(
+  cropConfig: CropConfig(
+    mode: CropMode.guideline,
+    padding: 10.0, // Optional padding
+  ),
+)
+
+// Disable auto-crop
+GuidelineOverlayConfig(
+  cropConfig: CropConfig(enabled: false),
+)
+```
+
+### Image Processing Presets
+
+```dart
+// Document scanning (grayscale, enhanced, sharpened)
+GuidelineOverlayConfig(
+  processing: ImageProcessingConfig.documentScan,
+)
+
+// ID card capture (color, enhanced, sharpened)
+GuidelineOverlayConfig(
+  processing: ImageProcessingConfig.idCard,
+)
+
+// Custom processing
+GuidelineOverlayConfig(
+  processing: ImageProcessingConfig(
+    enabled: true,
+    grayscale: true,
+    brightness: 0.1,
+    contrast: 0.2,
+    sharpen: true,
+    sharpenStrength: 1.5,
+  ),
+)
+```
+
+### Complete Example with Error Handling
+
+```dart
+GuidelineOverlayConfig(
+  shape: GuidelineShape.roundedRect,
+  aspectRatio: 1.586, // ID card
+  cropConfig: CropConfig(
+    mode: CropMode.guideline,
+    padding: 5.0, // Validated: 0-1000px
+  ),
+  processing: ImageProcessingConfig.idCard,
+  onCapture: (result) {
+    // Check for errors
+    if (result.cropError != null) {
+      print('Cropping failed: ${result.cropError}');
+    }
+    if (result.processingError != null) {
+      print('Processing failed: ${result.processingError}');
+    }
+
+    // Use best available version
+    print('Original: ${result.originalFile?.path}');
+    print('Cropped: ${result.croppedFiles.first.path}');
+    print('Processed: ${result.processedFile?.path}');
+    print('Final: ${result.file.path}'); // Best version (falls back gracefully)
+  },
+)
+```
+
+📖 **[Read the complete Auto-Crop & Image Processing Guide →](autocrop.md)**
+
+### Thread Safety & Performance
+
+- **Thread-Safe**: All temp file operations use lock-based synchronization
+- **Non-Blocking**: Heavy image processing runs in isolates (maintains 60fps UI)
+- **Cancellable**: Operations can be stopped cleanly on navigation
+- **Memory-Safe**: Auto-downsampling (4096px limit) prevents OOM crashes
 
 ---
 
@@ -480,20 +603,24 @@ static Future<XFile?> takePhoto({
   bool showCameraSwitch = true,
   Color backgroundColor = Colors.black,
   Widget Function(BuildContext, GuidelineState)? instructionBuilder,
+  bool enableCrop = false,        // NEW in v0.0.4
+  bool enableProcessing = false,  // NEW in v0.0.4
 })
 ```
 
 Simplified API for quick photo capture. Returns `XFile?` containing the captured image, or `null` if cancelled or error occurs.
 
-| Parameter          | Type                    | Required | Default                  | Description                  |
-| ------------------ | ----------------------- | -------- | ------------------------ | ---------------------------- |
-| context            | BuildContext            | Yes      | -                        | Build context for navigation |
-| guideline          | GuidelineOverlayConfig? | No       | Default config           | Overlay configuration        |
-| cameraDirection    | CameraLensDirection     | No       | CameraLensDirection.back | Initial camera direction     |
-| showFlashToggle    | bool                    | No       | true                     | Show flash toggle button     |
-| showCameraSwitch   | bool                    | No       | true                     | Show camera switch button    |
-| backgroundColor    | Color                   | No       | Colors.black             | Background color             |
-| instructionBuilder | Widget Function(...)?   | No       | -                        | Custom instruction widget    |
+| Parameter          | Type                    | Required | Default                  | Description                                                              |
+| ------------------ | ----------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ |
+| context            | BuildContext            | Yes      | -                        | Build context for navigation                                             |
+| guideline          | GuidelineOverlayConfig? | No       | Default config           | Overlay configuration                                                    |
+| cameraDirection    | CameraLensDirection     | No       | CameraLensDirection.back | Initial camera direction                                                 |
+| showFlashToggle    | bool                    | No       | true                     | Show flash toggle button                                                 |
+| showCameraSwitch   | bool                    | No       | true                     | Show camera switch button                                                |
+| backgroundColor    | Color                   | No       | Colors.black             | Background color                                                         |
+| instructionBuilder | Widget Function(...)?   | No       | -                        | Custom instruction widget                                                |
+| enableCrop         | bool                    | No       | false                    | Enable automatic cropping (always uses outermost crop strategy)          |
+| enableProcessing   | bool                    | No       | false                    | Enable automatic image processing (configure via `guideline.processing`) |
 
 ### GuidelineCamBuilder
 
@@ -654,11 +781,16 @@ MultiShapeOverlayConfig({
 
 ### Capture Result
 
-| Field      | Type                | Description                |
-| ---------- | ------------------- | -------------------------- |
-| file       | XFile               | Captured image file.       |
-| capturedAt | DateTime            | Timestamp of capture.      |
-| lens       | CameraLensDirection | Lens used for the capture. |
+| Field           | Type                | Description                                               |
+| --------------- | ------------------- | --------------------------------------------------------- |
+| file            | XFile               | Captured image file (best available version).             |
+| capturedAt      | DateTime            | Timestamp of capture.                                     |
+| lens            | CameraLensDirection | Lens used for the capture.                                |
+| originalFile    | XFile?              | Original unmodified capture (if crop/processing enabled). |
+| croppedFiles    | List\<XFile\>       | Cropped images (empty if crop disabled).                  |
+| processedFile   | XFile?              | Processed image (null if processing disabled).            |
+| cropError       | Exception?          | Error if cropping failed (null on success).               |
+| processingError | Exception?          | Error if processing failed (null on success).             |
 
 ## 🤖 LLM Integration
 

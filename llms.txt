@@ -2,21 +2,28 @@
 
 ## Package Overview
 - **Name**: guideline_cam
-- **Version**: 0.0.3
-- **Purpose**: Lightweight Flutter package for camera capture with customizable overlay shapes
-- **Core Value**: Guided camera interface for document/ID/face capture with visual guidelines
+- **Version**: 0.0.4
+- **Purpose**: Lightweight Flutter package for camera capture with customizable overlay shapes, auto-crop, and image processing
+- **Core Value**: Guided camera interface for document/ID/face capture with visual guidelines, automatic cropping, and image enhancement
 - **Platforms**: Android, iOS
-- **Dependencies**: camera: ^0.11.0+2
+- **Dependencies**:
+  - camera: ^0.11.0+2 - Camera functionality
+  - image: ^4.0.0 - Image processing
+  - synchronized: ^3.1.0+1 - Thread-safe operations
+  - async: ^2.11.0 - Cancellable operations
 
 ## Core Architecture
 
 ### Main Components
 - `GuidelineCam.takePhoto()` - Static API for simplified camera capture
 - `GuidelineCamBuilder` - Main widget combining camera preview + overlay
-- `GuidelineCamController` - Camera lifecycle, state management, capture operations
-- `GuidelineOverlayConfig` - Single/multi-shape overlay configuration
+- `GuidelineCamController` - Camera lifecycle, state management, capture operations, image processing
+- `GuidelineOverlayConfig` - Single/multi-shape overlay configuration with crop and processing options
 - `ShapeConfig` - Individual shape definition with positioning
 - `MultiShapeOverlayConfig` - Complex multi-shape overlay support
+- `CropConfig` - Auto-crop configuration (guideline/smart/hybrid modes)
+- `ImageProcessingConfig` - Image enhancement configuration (grayscale, brightness, contrast, etc.)
+- `GuidelineCaptureResult` - Extended capture result with original, cropped, and processed images
 
 ### Component Relationships
 ```
@@ -30,9 +37,26 @@ GuidelineCamBuilder
 
 ## Key Features
 
+### Auto-Crop (NEW in v0.0.4)
+- **Guideline Mode**: Crop to exact guideline overlay boundaries
+- **Multi-Shape Support**: Configurable strategies (outermost, eachShape)
+- **Padding**: Optional padding around crop area (validated 0-1000px)
+- **Thread-Safe**: Lock-based synchronization for concurrent operations
+- **Cancellable**: Operations can be stopped cleanly on navigation
+
+### Image Processing (NEW in v0.0.4)
+- **Grayscale Conversion**: Convert to grayscale/B&W
+- **Auto-Enhancement**: Automatic brightness and contrast optimization via histogram analysis (isolate-based)
+- **Brightness/Contrast/Saturation**: Fine-grained adjustment (-1.0 to 1.0)
+- **Noise Reduction**: Gaussian blur-based noise filtering (strength 1-10)
+- **Sharpening**: Unsharp mask for image sharpening (strength 0.0-2.0) (isolate-based)
+- **Quality Control**: Adjustable JPEG compression (0-100)
+- **Presets**: documentScan, idCard
+- **Non-Blocking**: Heavy operations run in separate isolates (60fps maintained)
+
 ### Overlay Shapes
 - `rect` - Plain rectangle (documents, forms)
-- `roundedRect` - Rounded corners (ID cards, credit cards) 
+- `roundedRect` - Rounded corners (ID cards, credit cards)
 - `circle` - Perfect circle (face capture, biometrics)
 - `oval` - Ellipse (passport photos, portraits)
 
@@ -62,6 +86,14 @@ GuidelineCamBuilder
 - `capturing` - Image capture in progress
 - `error` - Error state
 
+### Production Robustness
+- **Thread Safety**: Lock-based synchronization for temp file operations
+- **Input Validation**: Comprehensive validation on overlay bounds, padding (0-1000px)
+- **Memory Safety**: Automatic downsampling (4096px max) prevents OOM
+- **Error Tracking**: Detailed error fields (cropError, processingError) in results
+- **Cancellation**: Clean operation teardown via CancelableOperation
+- **Resource Cleanup**: Async thread-safe temp file cleanup on disposal
+
 ## API Surface
 
 ### GuidelineCam (Static API)
@@ -75,6 +107,8 @@ static Future<XFile?> takePhoto({
   bool showCameraSwitch = true,
   Color backgroundColor = Colors.black,
   Widget Function(BuildContext, GuidelineState)? instructionBuilder,
+  bool enableCrop = false,        // NEW in v0.0.4
+  bool enableProcessing = false,  // NEW in v0.0.4
 })
 ```
 
@@ -89,6 +123,8 @@ Simplified API for quick photo capture. Returns `XFile?` containing the captured
 | showCameraSwitch | bool | No | true | Show camera switch button |
 | backgroundColor | Color | No | Colors.black | Background color |
 | instructionBuilder | Widget Function(...)? | No | - | Custom instruction widget |
+| enableCrop | bool | No | false | Enable automatic cropping (uses outermost strategy) |
+| enableProcessing | bool | No | false | Enable image processing (configure via guideline.processing) |
 
 ### GuidelineCamBuilder
 ```dart
@@ -111,9 +147,14 @@ GuidelineCamBuilder({
 |--------|-----------|-------------|
 | `initialize()` | `Future<void>()` | Setup camera, discover devices |
 | `capture()` | `Future<XFile?>()` | Take photo, return file |
+| `captureWithProcessing()` | `Future<GuidelineCaptureResult?>()` | Take photo with auto-crop & processing (NEW, cancellable) |
+| `processImage()` | `Future<XFile>(XFile, ImageProcessingConfig)` | Manually process an image (NEW) |
+| `cropImage()` | `Future<XFile>(XFile, x, y, width, height)` | Manually crop an image (NEW) |
+| `cleanupTempFiles()` | `Future<void>()` | Thread-safe cleanup of temp files (NEW, async) |
 | `switchCamera()` | `Future<void>()` | Toggle front/back camera |
 | `setFlashMode()` | `Future<void>(FlashMode)` | Configure flash behavior |
-| `dispose()` | `void` | Cleanup resources |
+| `setConfig()` | `void(GuidelineOverlayConfig)` | Set config for auto-crop/processing (NEW) |
+| `dispose()` | `void` | Cleanup resources, cancel ongoing operations |
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -137,7 +178,42 @@ const GuidelineOverlayConfig({
   bool showGrid = false,
   bool debugPaint = false,
   List<ShapeConfig>? shapes, // Multi-shape mode
+  CropConfig cropConfig = const CropConfig(), // Auto-crop config (NEW)
+  ImageProcessingConfig? processing, // Image processing config (NEW)
 })
+```
+
+### CropConfig (NEW in v0.0.4)
+```dart
+const CropConfig({
+  bool enabled = true,                            // Enable/disable auto-crop
+  CropMode mode = CropMode.guideline,             // Only guideline mode available
+  CropStrategy strategy = CropStrategy.outermost, // outermost, eachShape
+  double padding = 0.0,                           // Padding around crop area (validated 0-1000px)
+})
+```
+
+**Validation**: Padding is validated to be between 0 and 1000 pixels. Values outside this range will throw an assertion error.
+
+### ImageProcessingConfig (NEW in v0.0.4)
+```dart
+const ImageProcessingConfig({
+  bool enabled = false,              // Enable/disable processing
+  bool autoEnhance = false,          // Auto brightness/contrast
+  bool grayscale = false,            // Convert to grayscale
+  double brightness = 0.0,           // -1.0 to 1.0
+  double contrast = 0.0,             // -1.0 to 1.0
+  double saturation = 0.0,           // -1.0 to 1.0
+  bool reduceNoise = false,          // Apply noise reduction
+  int noiseReductionStrength = 3,    // 1-10
+  bool sharpen = false,              // Apply sharpening
+  double sharpenStrength = 1.0,      // 0.0-2.0
+  int quality = 85,                  // JPEG quality 0-100
+})
+
+// Presets
+ImageProcessingConfig.documentScan  // Grayscale, enhanced, sharpened
+ImageProcessingConfig.idCard        // Color, enhanced, sharpened
 ```
 
 ### ShapeConfig
@@ -171,15 +247,26 @@ const ShapeConfig({
 - `ShapePositioning`: absolute, relative, center, inset
 - `FlashMode`: off, always, auto, torch
 - `CameraLensDirection`: back, front
+- `CropMode` (NEW): guideline
+- `CropStrategy` (NEW): outermost, eachShape
 
 ### Results
 ```dart
 class GuidelineCaptureResult {
-  final XFile file;           // Captured image file
-  final DateTime capturedAt;  // Capture timestamp
-  final CameraLensDirection lens; // Camera used
+  final XFile file;                  // Final image (processed > cropped > original)
+  final DateTime capturedAt;         // Capture timestamp
+  final CameraLensDirection lens;    // Camera used
+  final XFile? originalFile;         // Original unmodified capture (NEW)
+  final List<XFile> croppedFiles;    // Cropped images (NEW)
+  final XFile? processedFile;        // Processed image (NEW)
+  final Exception? cropError;        // Crop error if failed (NEW)
+  final Exception? processingError;  // Processing error if failed (NEW)
 }
 ```
+
+**Image Version Priority**: `processedFile` → `croppedFiles.first` → `file`
+
+**Error Handling**: Check `cropError` and `processingError` fields to detect failures. On error, the result still contains the best available version (falls back gracefully).
 
 ## Usage Patterns
 
@@ -188,13 +275,35 @@ class GuidelineCaptureResult {
 ```dart
 import 'package:guideline_cam/guideline_cam.dart';
 
-// Simple capture with default settings
+// Simple capture with default settings (no crop or processing)
 final XFile? photo = await GuidelineCam.takePhoto(context: context);
 
 if (photo != null) {
   // Handle captured photo
   print('Photo captured: ${photo.path}');
 }
+
+// Capture with automatic cropping enabled
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  enableCrop: true,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586, // ID card ratio
+  ),
+);
+
+// Capture with both crop and processing for ID cards
+final XFile? photo = await GuidelineCam.takePhoto(
+  context: context,
+  enableCrop: true,
+  enableProcessing: true,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586,
+    processing: ImageProcessingConfig.idCard,
+  ),
+);
 
 // Capture with custom overlay configuration
 final XFile? photo = await GuidelineCam.takePhoto(
@@ -213,18 +322,6 @@ final XFile? photo = await GuidelineCam.takePhoto(
   guideline: GuidelineOverlayConfig(
     shape: GuidelineShape.circle,
   ),
-);
-
-// Capture with custom instructions
-final XFile? photo = await GuidelineCam.takePhoto(
-  context: context,
-  guideline: GuidelineOverlayConfig(
-    shape: GuidelineShape.roundedRect,
-    aspectRatio: 1.586, // ID card ratio
-  ),
-  instructionBuilder: (context, state) {
-    return Text('Position your ID card');
-  },
 );
 ```
 
@@ -357,6 +454,135 @@ GuidelineCamBuilder(
 )
 ```
 
+### Auto-Crop with Smart Detection (NEW in v0.0.4)
+```dart
+GuidelineCamBuilder(
+  controller: controller,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586,
+    // Enable auto-crop with guideline mode
+    cropConfig: CropConfig(
+      mode: CropMode.guideline,
+      padding: 10.0,
+    ),
+  ),
+  onCapture: (result) {
+    // Access different versions
+    print('Original: ${result.originalFile?.path}');
+    print('Cropped: ${result.croppedFiles.first.path}');
+    print('Final: ${result.file.path}');
+  },
+)
+```
+
+### Document Scanning with Processing (NEW in v0.0.4)
+```dart
+GuidelineCamBuilder(
+  controller: controller,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.rect,
+    aspectRatio: 1.414, // A4 ratio
+    cropConfig: CropConfig(
+      mode: CropMode.guideline,
+    ),
+    // Apply document scan preset
+    processing: ImageProcessingConfig.documentScan,
+  ),
+  onCapture: (result) {
+    // result.processedFile contains grayscale, enhanced, sharpened image
+    final processedImage = result.processedFile ?? result.file;
+    uploadDocument(processedImage);
+  },
+)
+```
+
+### ID Card with Custom Processing (NEW in v0.0.4)
+```dart
+GuidelineCamBuilder(
+  controller: controller,
+  guideline: GuidelineOverlayConfig(
+    shape: GuidelineShape.roundedRect,
+    aspectRatio: 1.586,
+    cropConfig: CropConfig(
+      mode: CropMode.guideline,
+      padding: 5.0,
+    ),
+    processing: ImageProcessingConfig(
+      enabled: true,
+      autoEnhance: true,
+      brightness: 0.1,
+      contrast: 0.15,
+      sharpen: true,
+      sharpenStrength: 1.2,
+      quality: 95,
+    ),
+  ),
+)
+```
+
+### Manual Image Processing (NEW in v0.0.4)
+```dart
+// Capture first
+final capturedFile = await controller.capture();
+
+if (capturedFile != null) {
+  // Manual crop
+  final cropped = await controller.cropImage(
+    capturedFile,
+    x: 100,
+    y: 100,
+    width: 400,
+    height: 300,
+  );
+
+  // Manual processing
+  final processed = await controller.processImage(
+    cropped,
+    ImageProcessingConfig(
+      enabled: true,
+      grayscale: true,
+      autoEnhance: true,
+      sharpen: true,
+    ),
+  );
+
+  print('Processed: ${processed.path}');
+}
+```
+
+### Multi-Shape with Separate Crops (NEW in v0.0.4)
+```dart
+GuidelineCamBuilder(
+  controller: controller,
+  guideline: GuidelineOverlayConfig(
+    shapes: [
+      // Front side
+      ShapeConfig(
+        shape: GuidelineShape.rect,
+        bounds: Rect.fromLTWH(50, 100, 300, 200),
+      ),
+      // Back side
+      ShapeConfig(
+        shape: GuidelineShape.rect,
+        bounds: Rect.fromLTWH(50, 350, 300, 200),
+      ),
+    ],
+    cropConfig: CropConfig(
+      strategy: CropStrategy.eachShape, // Crop each separately
+    ),
+    processing: ImageProcessingConfig.idCard,
+  ),
+  onCapture: (result) {
+    // result.croppedFiles contains 2 images
+    final frontSide = result.croppedFiles[0];
+    final backSide = result.croppedFiles[1];
+    print('Front: ${frontSide.path}');
+    print('Back: ${backSide.path}');
+  },
+)
+```
+
 ## Configuration Guide
 
 ### Common Aspect Ratios
@@ -421,7 +647,7 @@ ShapeConfig.inset(
 ### Dependencies
 ```yaml
 dependencies:
-  guideline_cam: ^0.0.3
+  guideline_cam: ^0.0.4
 ```
 
 ### Error Handling
@@ -433,15 +659,26 @@ dependencies:
 
 ### Best Practices
 - Always initialize controller before use
-- Dispose controller in widget dispose
-- Handle error states gracefully
+- Dispose controller in widget dispose (cancels ongoing operations automatically)
+- Handle error states gracefully (check cropError/processingError fields)
 - Use appropriate aspect ratios for document types
 - Test on both front and back cameras
 - Consider device-specific camera capabilities
+- Call `await controller.cleanupTempFiles()` after processing to free storage immediately
+- Validate padding values (0-1000px range)
 
 ### Performance Considerations
 - Medium resolution preset used by default
 - Efficient path rendering for overlays
-- Minimal memory footprint
+- Memory capped at ~48MB per image (4096px max dimension)
 - Optimized for mobile devices
-- Background processing for image capture
+- Heavy operations run in background isolates (non-blocking UI)
+- Concurrent operations are thread-safe
+- Automatic cleanup prevents disk bloat
+
+### Thread Safety & Concurrency
+- Temp file operations use Lock-based synchronization
+- Safe for concurrent capture operations
+- `cleanupTempFiles()` is async and thread-safe
+- `captureWithProcessing()` can be cancelled via dispose()
+- No race conditions in multi-threaded scenarios

@@ -91,7 +91,7 @@ import 'package:guideline_cam/src/multi_shape_config.dart';
 /// * [ShapeConfig], for individual shape configuration
 /// * [OverlayPainter], for single-shape overlays
 class MultiShapeOverlayPainter extends CustomPainter {
-  const MultiShapeOverlayPainter(this.config);
+  const MultiShapeOverlayPainter(this.config, {this.onBoundsCalculated});
 
   /// The configuration that defines the multi-shape overlay structure and appearance.
   ///
@@ -109,19 +109,36 @@ class MultiShapeOverlayPainter extends CustomPainter {
   /// * [MultiShapeOverlayConfig], for configuration options
   final MultiShapeOverlayConfig config;
 
+  /// Callback to report the calculated bounds of the overlay.
+  /// Used for guideline-based cropping.
+  /// Provides both the combined bounds and individual shape bounds.
+  final void Function(Rect bounds, Size size, {List<Rect>? shapeBounds})?
+      onBoundsCalculated;
+
   @override
   void paint(Canvas canvas, Size size) {
     // Create combined path for all shapes (including children)
     final combinedPath = Path();
+    final individualShapeBounds = <Rect>[];
+
     for (final shapeConfig in config.shapes) {
       final shapePath = _createShapePath(shapeConfig, shapeConfig.bounds);
       combinedPath.addPath(shapePath, Offset.zero);
+
+      // Store individual shape bounds (top-level shapes only, not children)
+      individualShapeBounds.add(shapePath.getBounds());
 
       // Add children paths recursively
       if (shapeConfig.children != null) {
         _addChildrenPaths(
             combinedPath, shapeConfig.children!, shapeConfig.bounds);
       }
+    }
+
+    // Calculate and report the bounds for cropping
+    if (onBoundsCalculated != null) {
+      final bounds = combinedPath.getBounds();
+      onBoundsCalculated!(bounds, size, shapeBounds: individualShapeBounds);
     }
 
     // Create mask covering entire screen except shapes

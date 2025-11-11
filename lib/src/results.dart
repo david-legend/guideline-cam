@@ -16,6 +16,19 @@ import 'package:camera/camera.dart';
 ///     final imageFile = result.file;
 ///     print('Image saved to: ${imageFile.path}');
 ///
+///     // Access cropped images (if auto-crop is enabled)
+///     if (result.croppedFiles.isNotEmpty) {
+///       print('Cropped to ${result.croppedFiles.length} images');
+///       for (final cropped in result.croppedFiles) {
+///         print('Cropped file: ${cropped.path}');
+///       }
+///     }
+///
+///     // Access processed image (if processing is enabled)
+///     if (result.processedFile != null) {
+///       print('Processed image: ${result.processedFile!.path}');
+///     }
+///
 ///     // Get capture metadata
 ///     print('Captured at: ${result.capturedAt}');
 ///     print('Camera lens: ${result.lens}');
@@ -26,20 +39,23 @@ import 'package:camera/camera.dart';
 /// )
 ///
 /// Future<void> _processCapturedImage(GuidelineCaptureResult result) async {
+///   // Use processed file if available, otherwise original
+///   final fileToUse = result.processedFile ?? result.file;
+///
 ///   // Read image bytes
-///   final bytes = await result.file.readAsBytes();
+///   final bytes = await fileToUse.readAsBytes();
 ///
 ///   // Save to gallery
-///   await GallerySaver.saveImage(result.file.path);
+///   await GallerySaver.saveImage(fileToUse.path);
 ///
 ///   // Upload to server
-///   await _uploadImage(result.file);
+///   await _uploadImage(fileToUse);
 ///
 ///   // Navigate to preview
 ///   Navigator.push(
 ///     context,
 ///     MaterialPageRoute(
-///       builder: (context) => ImagePreviewPage(result.file),
+///       builder: (context) => ImagePreviewPage(fileToUse),
 ///     ),
 ///   );
 /// }
@@ -59,13 +75,23 @@ class GuidelineCaptureResult {
   /// Creates a new capture result with the given properties.
   ///
   /// Parameters:
-  /// * [file] - The captured image file
+  /// * [file] - The captured image file (or processed file if processing was applied)
   /// * [capturedAt] - The timestamp when the image was captured
   /// * [lens] - The camera lens direction used for capture
+  /// * [originalFile] - The original unmodified captured image (optional)
+  /// * [croppedFiles] - List of cropped images if auto-crop is enabled (optional)
+  /// * [processedFile] - The processed image if image processing was applied (optional)
+  /// * [cropError] - Exception if cropping failed (optional)
+  /// * [processingError] - Exception if image processing failed (optional)
   const GuidelineCaptureResult({
     required this.file,
     required this.capturedAt,
     required this.lens,
+    this.originalFile,
+    this.croppedFiles = const [],
+    this.processedFile,
+    this.cropError,
+    this.processingError,
   });
 
   /// The captured image file.
@@ -159,4 +185,119 @@ class GuidelineCaptureResult {
   /// * [CameraLensDirection], for available lens directions
   /// * [GuidelineCamController.lensDirection], for current camera direction
   final CameraLensDirection lens;
+
+  /// The original unmodified captured image.
+  ///
+  /// This is the raw image from the camera before any cropping or processing.
+  /// Useful if you need access to the full original image alongside cropped
+  /// or processed versions.
+  ///
+  /// Will be null if no cropping or processing was applied.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Compare original and processed
+  /// if (result.originalFile != null) {
+  ///   print('Original: ${result.originalFile!.path}');
+  ///   print('Processed: ${result.file.path}');
+  /// }
+  /// ```
+  final XFile? originalFile;
+
+  /// List of cropped images if auto-crop is enabled.
+  ///
+  /// When auto-crop is enabled with [CropStrategy.eachShape], this list will
+  /// contain separate cropped images for each shape in the overlay.
+  ///
+  /// For single-shape overlays or [CropStrategy.outermost],
+  /// this list will contain a single cropped image.
+  ///
+  /// Empty list if cropping is disabled.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Handle multiple crops (e.g., front and back of ID card)
+  /// if (result.croppedFiles.length == 2) {
+  ///   final front = result.croppedFiles[0];
+  ///   final back = result.croppedFiles[1];
+  ///   print('Front: ${front.path}');
+  ///   print('Back: ${back.path}');
+  /// }
+  ///
+  /// // Or just get the first crop
+  /// if (result.croppedFiles.isNotEmpty) {
+  ///   final cropped = result.croppedFiles.first;
+  ///   await _processCroppedImage(cropped);
+  /// }
+  /// ```
+  final List<XFile> croppedFiles;
+
+  /// The processed image if image processing was applied.
+  ///
+  /// When image processing is enabled (grayscale, brightness adjustment, etc.),
+  /// this contains the final processed image.
+  ///
+  /// Will be null if image processing is disabled.
+  ///
+  /// Note: If both cropping and processing are enabled, processing is applied
+  /// after cropping, and this file will be the processed version of the crop.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Use processed image if available
+  /// final finalImage = result.processedFile ?? result.file;
+  /// await _uploadToServer(finalImage);
+  ///
+  /// // Check if processing was applied
+  /// if (result.processedFile != null) {
+  ///   print('Image was processed');
+  ///   // Maybe show before/after comparison
+  ///   _showComparison(result.originalFile!, result.processedFile!);
+  /// }
+  /// ```
+  final XFile? processedFile;
+
+  /// Error that occurred during cropping, if any.
+  ///
+  /// If cropping was enabled but failed, this field will contain the exception.
+  /// Check this field to determine if the requested cropping operation succeeded.
+  ///
+  /// Will be null if:
+  /// * Cropping was disabled
+  /// * Cropping succeeded without errors
+  ///
+  /// Example:
+  /// ```dart
+  /// if (result.cropError != null) {
+  ///   print('Cropping failed: ${result.cropError}');
+  ///   // Fall back to original image
+  ///   final image = result.originalFile ?? result.file;
+  /// } else if (result.croppedFiles.isNotEmpty) {
+  ///   print('Cropping succeeded');
+  ///   final cropped = result.croppedFiles.first;
+  /// }
+  /// ```
+  final Exception? cropError;
+
+  /// Error that occurred during image processing, if any.
+  ///
+  /// If image processing was enabled but failed, this field will contain the exception.
+  /// Check this field to determine if the requested processing operation succeeded.
+  ///
+  /// Will be null if:
+  /// * Image processing was disabled
+  /// * Processing succeeded without errors
+  ///
+  /// Example:
+  /// ```dart
+  /// if (result.processingError != null) {
+  ///   print('Processing failed: ${result.processingError}');
+  ///   // Use unprocessed image
+  ///   final image = result.croppedFiles.firstOrNull ?? result.file;
+  /// } else if (result.processedFile != null) {
+  ///   print('Processing succeeded');
+  ///   final processed = result.processedFile!;
+  /// }
+  /// ```
+  final Exception? processingError;
 }

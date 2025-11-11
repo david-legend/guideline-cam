@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:guideline_cam/src/enums.dart';
 import 'package:guideline_cam/src/multi_shape_config.dart';
+import 'package:guideline_cam/src/crop_config.dart';
+import 'package:guideline_cam/src/processing_config.dart';
 
 /// Configuration for the guideline overlay appearance and behavior.
 ///
@@ -76,6 +78,8 @@ class GuidelineOverlayConfig {
     this.showGrid = false,
     this.debugPaint = false,
     this.shapes,
+    this.cropConfig = const CropConfig(),
+    this.processing,
   })  : assert(aspectRatio == null || aspectRatio > 0,
             'Aspect ratio must be positive'),
         assert(strokeWidth >= 0, 'Stroke width cannot be negative'),
@@ -285,6 +289,69 @@ class GuidelineOverlayConfig {
   /// * [isMultiShape], to check if this is a multi-shape configuration
   final List<ShapeConfig>? shapes;
 
+  /// Configuration for automatic image cropping.
+  ///
+  /// Controls how the captured image is automatically cropped after capture.
+  /// By default, auto-crop is enabled with guideline-based cropping.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Disable cropping
+  /// cropConfig: CropConfig(enabled: false),
+  ///
+  /// // Guideline-based crop with padding
+  /// cropConfig: CropConfig(
+  ///   mode: CropMode.guideline,
+  ///   padding: 10.0,
+  /// ),
+  ///
+  /// // Multi-shape: crop each shape separately
+  /// cropConfig: CropConfig(
+  ///   strategy: CropStrategy.eachShape,
+  /// ),
+  /// ```
+  ///
+  /// See also:
+  /// * [CropConfig], for cropping options
+  /// * [CropMode], for available crop modes
+  /// * [CropStrategy], for multi-shape strategies
+  final CropConfig cropConfig;
+
+  /// Configuration for automatic image processing.
+  ///
+  /// When provided, the captured image will be automatically processed with
+  /// the specified enhancements (grayscale, brightness, contrast, etc.).
+  /// Processing is applied after cropping if both are enabled.
+  ///
+  /// By default, image processing is disabled (null).
+  ///
+  /// Example:
+  /// ```dart
+  /// // Document scanning preset
+  /// processing: ImageProcessingConfig.documentScan,
+  ///
+  /// // ID card preset
+  /// processing: ImageProcessingConfig.idCard,
+  ///
+  /// // Custom processing
+  /// processing: ImageProcessingConfig(
+  ///   enabled: true,
+  ///   grayscale: true,
+  ///   brightness: 0.1,
+  ///   contrast: 0.2,
+  ///   sharpen: true,
+  /// ),
+  ///
+  /// // Disable processing
+  /// processing: null, // or ImageProcessingConfig(enabled: false)
+  /// ```
+  ///
+  /// See also:
+  /// * [ImageProcessingConfig], for processing options
+  /// * [ImageProcessingConfig.documentScan], for document preset
+  /// * [ImageProcessingConfig.idCard], for ID card preset
+  final ImageProcessingConfig? processing;
+
   /// Whether this configuration uses multiple shapes.
   ///
   /// Returns `true` if the [shapes] list is provided and contains at least
@@ -344,6 +411,39 @@ class GuidelineOverlayConfig {
       shapes: shapes!,
       maskColor: maskColor,
       debugPaint: debugPaint,
+    );
+  }
+
+  /// Creates a copy of this config with the given fields replaced.
+  GuidelineOverlayConfig copyWith({
+    GuidelineShape? shape,
+    double? aspectRatio,
+    double? strokeWidth,
+    double? borderRadius,
+    Color? maskColor,
+    Color? frameColor,
+    double? cornerLength,
+    EdgeInsets? padding,
+    bool? showGrid,
+    bool? debugPaint,
+    List<ShapeConfig>? shapes,
+    CropConfig? cropConfig,
+    ImageProcessingConfig? processing,
+  }) {
+    return GuidelineOverlayConfig(
+      shape: shape ?? this.shape,
+      aspectRatio: aspectRatio ?? this.aspectRatio,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
+      borderRadius: borderRadius ?? this.borderRadius,
+      maskColor: maskColor ?? this.maskColor,
+      frameColor: frameColor ?? this.frameColor,
+      cornerLength: cornerLength ?? this.cornerLength,
+      padding: padding ?? this.padding,
+      showGrid: showGrid ?? this.showGrid,
+      debugPaint: debugPaint ?? this.debugPaint,
+      shapes: shapes ?? this.shapes,
+      cropConfig: cropConfig ?? this.cropConfig,
+      processing: processing ?? this.processing,
     );
   }
 }

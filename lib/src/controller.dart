@@ -1,8 +1,19 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:async/async.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
+import 'package:synchronized/synchronized.dart';
+import 'package:guideline_cam/src/config.dart';
+import 'package:guideline_cam/src/crop_config.dart';
 import 'package:guideline_cam/src/enums.dart';
+import 'package:guideline_cam/src/image_processor.dart';
+import 'package:guideline_cam/src/processing_config.dart';
+import 'package:guideline_cam/src/results.dart';
+import 'package:image/image.dart' as img;
 
 /// A controller for the [GuidelineCamBuilder] widget.
 ///
@@ -115,6 +126,41 @@ class GuidelineCamController extends ChangeNotifier {
 
   /// The current camera lens direction.
   CameraLensDirection _lensDirection = CameraLensDirection.back;
+
+  /// The current guideline configuration (for cropping and processing).
+  GuidelineOverlayConfig? _config;
+
+  /// The overlay bounds for guideline-based cropping.
+  ui.Rect? _overlayBounds;
+
+  /// Individual shape bounds for multi-shape cropping (used with eachShape strategy).
+  List<ui.Rect>? _shapeBounds;
+
+  /// The screen/widget size where the overlay is drawn.
+  ui.Size? _screenSize;
+
+  /// The camera description for accessing sensor information.
+  CameraDescription? _cameraDescription;
+
+  /// Set of temporary files created during processing that need cleanup.
+  final Set<String> _tempFiles = {};
+
+  /// Lock for thread-safe access to temp files.
+  final Lock _tempFilesLock = Lock();
+
+  /// Current ongoing processing operation (for cancellation support).
+  CancelableOperation<GuidelineCaptureResult?>? _processingOperation;
+
+  /// Maximum image dimension (width or height) to prevent OOM.
+  /// Images larger than this will be downsampled.
+  static const int maxImageDimension = 4096;
+
+  /// Minimum acceptable crop dimension (width or height) in pixels.
+  /// Crop regions smaller than this are likely invalid.
+  static const int minCropDimension = 10;
+
+  /// Default JPEG quality for cropped images (0-100).
+  static const int defaultCropQuality = 95;
 
   /// Creates a new [GuidelineCamController] with optional initial camera direction.
   ///
@@ -270,6 +316,9 @@ class GuidelineCamController extends ChangeNotifier {
           (c) => c.lensDirection == _lensDirection,
           orElse: () => cameras.first);
 
+      // Store camera description for transform creation
+      _cameraDescription = camera;
+
       _cameraController = CameraController(
         camera,
         ResolutionPreset.medium,
@@ -277,6 +326,7 @@ class GuidelineCamController extends ChangeNotifier {
       );
 
       await _cameraController!.initialize();
+
       _state = GuidelineState.ready;
     } catch (e) {
       _state = GuidelineState.error;
@@ -293,9 +343,75 @@ class GuidelineCamController extends ChangeNotifier {
 
   @override
   void dispose() {
+    // Cancel any ongoing processing operations
+    _processingOperation?.cancel();
+
     _cameraController?.dispose();
     _stateStreamController.close();
+    // Cleanup temp files synchronously (dispose is not async)
+    _tempFilesLock.synchronized(() {
+      _cleanupTempFilesSync();
+    });
     super.dispose();
+  }
+
+  /// Cleans up all temporary files created during image processing (synchronous).
+  ///
+  /// This method should be called when the controller is disposed or when
+  /// temporary files are no longer needed. It deletes all files tracked in
+  /// [_tempFiles] and clears the set.
+  ///
+  /// Failures to delete individual files are logged but don't throw exceptions
+  /// to ensure cleanup continues for remaining files.
+  ///
+  /// **Note:** This method is not thread-safe. Use [cleanupTempFiles] for
+  /// thread-safe cleanup from external callers.
+  void _cleanupTempFilesSync() {
+    for (final path in _tempFiles) {
+      try {
+        final file = File(path);
+        if (file.existsSync()) {
+          file.deleteSync();
+          if (kDebugMode) {
+            print('Cleaned up temp file: $path');
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('Failed to delete temp file $path: $e');
+        }
+        // Continue cleanup even if one file fails
+      }
+    }
+    _tempFiles.clear();
+  }
+
+  /// Manually cleanup temporary files before disposal.
+  ///
+  /// This method is **thread-safe** and can be called at any time, even while
+  /// capture operations are in progress. It will wait for any ongoing operations
+  /// to complete before cleaning up.
+  ///
+  /// This can be called after processing is complete to free up storage
+  /// immediately rather than waiting for controller disposal.
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = await controller.captureWithProcessing();
+  /// // Process the result...
+  /// await controller.cleanupTempFiles(); // Free storage immediately
+  /// ```
+  Future<void> cleanupTempFiles() async {
+    await _tempFilesLock.synchronized(() {
+      _cleanupTempFilesSync();
+    });
+  }
+
+  /// Adds a temp file path to the cleanup set in a thread-safe manner.
+  Future<void> _addTempFile(String path) async {
+    await _tempFilesLock.synchronized(() {
+      _tempFiles.add(path);
+    });
   }
 
   /// Captures an image using the current camera.
@@ -428,5 +544,515 @@ class GuidelineCamController extends ChangeNotifier {
       _flashMode = mode;
       notifyListeners();
     }
+  }
+
+  /// Sets the guideline configuration for cropping and processing.
+  ///
+  /// This method should be called by the GuidelineCamBuilder to provide
+  /// the configuration needed for auto-crop and image processing.
+  ///
+  /// Parameters:
+  /// * [config] - The guideline overlay configuration
+  ///
+  /// This is typically called internally by the builder widget.
+  void setConfig(GuidelineOverlayConfig config) {
+    _config = config;
+  }
+
+  /// Sets the overlay bounds for guideline-based cropping.
+  ///
+  /// This method should be called by the overlay painter to provide
+  /// the actual bounds of the guideline overlay for accurate cropping.
+  ///
+  /// Parameters:
+  /// * [bounds] - The overlay bounds in pixels
+  /// * [screenSize] - The screen/widget size where the overlay is drawn
+  /// * [shapeBounds] - Optional list of individual shape bounds for multi-shape cropping
+  ///
+  /// This is typically called internally by the overlay painter.
+  void setOverlayBounds(
+    ui.Rect bounds,
+    ui.Size screenSize, {
+    List<ui.Rect>? shapeBounds,
+  }) {
+    // Validate bounds
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      throw ArgumentError(
+        'Invalid overlay bounds: width and height must be positive. '
+        'Got: ${bounds.width}×${bounds.height}'
+      );
+    }
+    if (bounds.width.isNaN || bounds.height.isNaN ||
+        bounds.width.isInfinite || bounds.height.isInfinite) {
+      throw ArgumentError(
+        'Invalid overlay bounds: contains NaN or Infinity values'
+      );
+    }
+
+    // Validate screen size
+    if (screenSize.width <= 0 || screenSize.height <= 0) {
+      throw ArgumentError(
+        'Invalid screen size: width and height must be positive. '
+        'Got: ${screenSize.width}×${screenSize.height}'
+      );
+    }
+    if (screenSize.width.isNaN || screenSize.height.isNaN ||
+        screenSize.width.isInfinite || screenSize.height.isInfinite) {
+      throw ArgumentError(
+        'Invalid screen size: contains NaN or Infinity values'
+      );
+    }
+
+    // Validate shape bounds if provided
+    if (shapeBounds != null) {
+      for (int i = 0; i < shapeBounds.length; i++) {
+        final shape = shapeBounds[i];
+        if (shape.width <= 0 || shape.height <= 0) {
+          throw ArgumentError(
+            'Invalid shape bounds at index $i: width and height must be positive. '
+            'Got: ${shape.width}×${shape.height}'
+          );
+        }
+        if (shape.width.isNaN || shape.height.isNaN ||
+            shape.width.isInfinite || shape.height.isInfinite) {
+          throw ArgumentError(
+            'Invalid shape bounds at index $i: contains NaN or Infinity values'
+          );
+        }
+      }
+    }
+
+    _overlayBounds = bounds;
+    _screenSize = screenSize;
+    _shapeBounds = shapeBounds;
+  }
+
+  /// Captures an image with optional cropping and processing.
+  ///
+  /// This method extends [capture()] to support auto-crop and image processing
+  /// based on the guideline configuration. It:
+  /// 1. Captures the image
+  /// 2. Applies cropping if enabled
+  /// 3. Applies image processing if enabled
+  /// 4. Returns a [GuidelineCaptureResult] with all versions
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = await controller.captureWithProcessing();
+  /// if (result != null) {
+  ///   // Access the original file
+  ///   print('Original: ${result.originalFile?.path}');
+  ///
+  ///   // Access cropped files
+  ///   for (final cropped in result.croppedFiles) {
+  ///     print('Cropped: ${cropped.path}');
+  ///   }
+  ///
+  ///   // Access processed file
+  ///   if (result.processedFile != null) {
+  ///     print('Processed: ${result.processedFile!.path}');
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// Returns a [GuidelineCaptureResult] with the captured and processed images,
+  /// or `null` if capture fails.
+  ///
+  /// This operation can be cancelled by calling [dispose()] on the controller.
+  /// If cancelled, the operation will stop immediately and cleanup any temporary files.
+  Future<GuidelineCaptureResult?> captureWithProcessing() async {
+    // Wrap in cancelable operation for cancellation support
+    _processingOperation = CancelableOperation.fromFuture(_captureWithProcessingInternal());
+
+    try {
+      final result = await _processingOperation!.value;
+      return result;
+    } catch (e) {
+      // Operation was cancelled or failed
+      if (kDebugMode) {
+        print('Capture operation cancelled or failed: $e');
+      }
+      return null;
+    } finally {
+      _processingOperation = null;
+    }
+  }
+
+  /// Internal implementation of captureWithProcessing (cancelable).
+  Future<GuidelineCaptureResult?> _captureWithProcessingInternal() async {
+    final capturedFile = await capture();
+    if (capturedFile == null) {
+      return null;
+    }
+
+    final capturedAt = DateTime.now();
+    XFile? originalFile;
+    List<XFile> croppedFiles = [];
+    XFile? processedFile;
+    Exception? cropError;
+    Exception? processingError;
+    XFile finalFile = capturedFile;
+
+    // Store original if we're going to modify it
+    if (_config != null &&
+        (_config!.cropConfig.enabled ||
+            (_config!.processing?.enabled ?? false))) {
+      originalFile = capturedFile;
+    }
+
+    // Apply cropping if enabled
+    if (_config != null && _config!.cropConfig.enabled) {
+      try {
+        croppedFiles = await _applyCropping(capturedFile, _config!.cropConfig);
+        if (croppedFiles.isNotEmpty) {
+          finalFile = croppedFiles.first;
+        } else {
+          // Empty result indicates failure
+          cropError = Exception('Cropping failed: no valid crop region detected');
+        }
+      } catch (e) {
+        cropError = e is Exception ? e : Exception('Cropping failed: $e');
+        if (kDebugMode) {
+          print('Cropping failed: $e');
+        }
+        // Continue with original file if cropping fails
+      }
+    }
+
+    // Apply processing if enabled
+    if (_config != null &&
+        _config!.processing != null &&
+        _config!.processing!.enabled) {
+      try {
+        processedFile = await ImageProcessor.processImage(
+          finalFile,
+          _config!.processing!,
+        );
+        finalFile = processedFile;
+
+        // Track temp file for cleanup
+        await _addTempFile(processedFile.path);
+      } catch (e) {
+        processingError = e is Exception ? e : Exception('Processing failed: $e');
+        if (kDebugMode) {
+          print('Processing failed: $e');
+        }
+        // Continue with unprocessed file if processing fails
+      }
+    }
+
+    return GuidelineCaptureResult(
+      file: finalFile,
+      capturedAt: capturedAt,
+      lens: _lensDirection,
+      originalFile: originalFile,
+      croppedFiles: croppedFiles,
+      processedFile: processedFile,
+      cropError: cropError,
+      processingError: processingError,
+    );
+  }
+
+  /// Apply cropping to the captured image based on configuration.
+  ///
+  /// Simple approach:  scale and crop.
+  /// This ensures the cropped image aspect ratio matches the guideline.
+  Future<List<XFile>> _applyCropping(XFile file, CropConfig config) async {
+    final List<XFile> results = [];
+
+    if (_overlayBounds == null || _screenSize == null) {
+      throw Exception(
+        'Cannot crop: overlay bounds or screen size not set. '
+        'This usually indicates the camera preview was not fully initialized before capture.'
+      );
+    }
+
+    try {
+      // Read and decode the captured image
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception('Image file is empty: ${file.path}');
+      }
+
+      var image = img.decodeImage(bytes);
+      if (image == null) {
+        throw Exception('Failed to decode image from ${file.path}. File may be corrupted or in an unsupported format.');
+      }
+
+      // Downsample if image is too large to prevent OOM
+      final maxDim = math.max(image.width, image.height);
+      if (maxDim > maxImageDimension) {
+        final scale = maxImageDimension / maxDim;
+        final newWidth = (image.width * scale).round();
+        final newHeight = (image.height * scale).round();
+        image = img.copyResize(
+          image,
+          width: newWidth,
+          height: newHeight,
+          interpolation: img.Interpolation.average,
+        );
+      }
+
+      final sensorOrientation = _cameraDescription?.sensorOrientation ?? 0;
+
+      // STEP 2: Calculate uniform scale to preserve aspect ratios
+      final scaleX = image.width / _screenSize!.width;
+      final scaleY = image.height / _screenSize!.height;
+      final scale = math.min(scaleX, scaleY);
+
+      // STEP 3: Calculate offset for centering
+      final scaledScreenWidth = _screenSize!.width * scale;
+      final scaledScreenHeight = _screenSize!.height * scale;
+      final offsetX = (image.width - scaledScreenWidth) / 2;
+      final offsetY = (image.height - scaledScreenHeight) / 2;
+
+      // Check if we should crop each shape individually
+      if (config.strategy == CropStrategy.eachShape &&
+          _shapeBounds != null &&
+          _shapeBounds!.isNotEmpty) {
+        // Crop each shape individually
+        if (kDebugMode) {
+          print('\n=== MULTI-CROP DEBUG (Each Shape) ===');
+          print('Original image: ${image.width}×${image.height}');
+          print('Number of shapes: ${_shapeBounds!.length}');
+        }
+
+        for (int i = 0; i < _shapeBounds!.length; i++) {
+          final shapeBound = _shapeBounds![i];
+
+          if (kDebugMode) {
+            print(
+                '\n--- Shape ${i + 1} ---');
+            print(
+                'Screen bounds: ${shapeBound.width.toInt()}×${shapeBound.height.toInt()} at (${shapeBound.left.toInt()}, ${shapeBound.top.toInt()})');
+          }
+
+          // Map shape coordinates to image coordinates
+          var cropX = (shapeBound.left * scale + offsetX - config.padding)
+              .clamp(0.0, image.width.toDouble());
+          var cropY = (shapeBound.top * scale + offsetY - config.padding)
+              .clamp(0.0, image.height.toDouble());
+          var cropWidth = (shapeBound.width * scale + config.padding * 2)
+              .clamp(0.0, image.width - cropX);
+          var cropHeight = (shapeBound.height * scale + config.padding * 2)
+              .clamp(0.0, image.height - cropY);
+
+          // Validate crop region
+          if (cropWidth < minCropDimension || cropHeight < minCropDimension) {
+            throw Exception(
+              'Crop region too small for shape ${i + 1}: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
+              'The guideline may be positioned outside the camera frame or the padding is too large.'
+            );
+          }
+
+          if (cropX + cropWidth > image.width || cropY + cropHeight > image.height) {
+            throw Exception(
+              'Crop region exceeds image bounds for shape ${i + 1}: '
+              'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
+              'vs image ${image.width}×${image.height}'
+            );
+          }
+
+          if (kDebugMode) {
+            print(
+                'Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
+          }
+
+          // Crop the shape
+          final croppedImage = img.copyCrop(
+            image,
+            x: cropX.round(),
+            y: cropY.round(),
+            width: cropWidth.round(),
+            height: cropHeight.round(),
+          );
+
+          if (kDebugMode) {
+            print(
+                'Result: ${croppedImage.width}×${croppedImage.height}');
+          }
+
+          // Save to file
+          final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
+          final tempDir = Directory.systemTemp;
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final tempFile =
+              File('${tempDir.path}/cropped_shape${i + 1}_$timestamp.jpg');
+          await tempFile.writeAsBytes(croppedBytes);
+
+          // Track temp file for cleanup
+          await _addTempFile(tempFile.path);
+
+          results.add(XFile(tempFile.path));
+        }
+
+        if (kDebugMode) {
+          print('======================\n');
+        }
+      } else {
+        // Crop using combined bounds (outermost strategy)
+        if (kDebugMode) {
+          print('\n=== AUTO-CROP DEBUG ===');
+          print('Original image: ${image.width}×${image.height}');
+          print(
+              'Screen size: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
+          print('Sensor orientation: $sensorOrientation°');
+          print(
+              'Guideline (screen): ${_overlayBounds!.width.toInt()}×${_overlayBounds!.height.toInt()} at (${_overlayBounds!.left.toInt()}, ${_overlayBounds!.top.toInt()})');
+          print(
+              'Guideline aspect ratio: ${(_overlayBounds!.width / _overlayBounds!.height).toStringAsFixed(3)}');
+          print('Scale: X=$scaleX, Y=$scaleY, uniform=$scale');
+          print('Offset: ($offsetX, $offsetY)');
+        }
+
+        // STEP 4: Map guideline coordinates to image coordinates
+        var cropX = (_overlayBounds!.left * scale + offsetX - config.padding)
+            .clamp(0.0, image.width.toDouble());
+        var cropY = (_overlayBounds!.top * scale + offsetY - config.padding)
+            .clamp(0.0, image.height.toDouble());
+        var cropWidth = (_overlayBounds!.width * scale + config.padding * 2)
+            .clamp(0.0, image.width - cropX);
+        var cropHeight = (_overlayBounds!.height * scale + config.padding * 2)
+            .clamp(0.0, image.height - cropY);
+
+        // Validate crop region
+        if (cropWidth < minCropDimension || cropHeight < minCropDimension) {
+          throw Exception(
+            'Crop region too small: ${cropWidth.toInt()}×${cropHeight.toInt()}. '
+            'The guideline may be positioned outside the camera frame or the padding is too large.'
+          );
+        }
+
+        if (cropX + cropWidth > image.width || cropY + cropHeight > image.height) {
+          throw Exception(
+            'Crop region exceeds image bounds: '
+            'region (${cropX.toInt()}, ${cropY.toInt()}, ${cropWidth.toInt()}×${cropHeight.toInt()}) '
+            'vs image ${image.width}×${image.height}'
+          );
+        }
+
+        if (kDebugMode) {
+          print(
+              'Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
+          print(
+              'Crop aspect ratio: ${(cropWidth / cropHeight).toStringAsFixed(3)}');
+        }
+
+        // STEP 5: Crop the image
+        final croppedImage = img.copyCrop(
+          image,
+          x: cropX.round(),
+          y: cropY.round(),
+          width: cropWidth.round(),
+          height: cropHeight.round(),
+        );
+
+        if (kDebugMode) {
+          print(
+              'Final result: ${croppedImage.width}×${croppedImage.height}');
+          print(
+              'Final aspect ratio: ${(croppedImage.width / croppedImage.height).toStringAsFixed(3)}');
+          print('======================\n');
+        }
+
+        // Save to file
+        final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
+        final tempDir = Directory.systemTemp;
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final tempFile = File('${tempDir.path}/cropped_$timestamp.jpg');
+        await tempFile.writeAsBytes(croppedBytes);
+
+        // Track temp file for cleanup
+        await _addTempFile(tempFile.path);
+
+        results.add(XFile(tempFile.path));
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('Auto-crop failed: $e');
+        print('Stack trace: $stackTrace');
+      }
+    }
+
+    return results;
+  }
+
+  /// Process an image file with the specified configuration.
+  ///
+  /// This method allows manual image processing after capture.
+  /// It can be used for custom processing workflows.
+  ///
+  /// Example:
+  /// ```dart
+  /// final captured = await controller.capture();
+  /// if (captured != null) {
+  ///   final processed = await controller.processImage(
+  ///     captured,
+  ///     ImageProcessingConfig.documentScan,
+  ///   );
+  ///   print('Processed: ${processed.path}');
+  /// }
+  /// ```
+  ///
+  /// Parameters:
+  /// * [file] - The image file to process
+  /// * [config] - The processing configuration
+  ///
+  /// Returns the processed image file.
+  Future<XFile> processImage(XFile file, ImageProcessingConfig config) async {
+    final processed = await ImageProcessor.processImage(file, config);
+
+    // Track temp file for cleanup
+    await _addTempFile(processed.path);
+
+    return processed;
+  }
+
+  /// Crop an image file to a rectangular region.
+  ///
+  /// This method allows manual cropping after capture.
+  ///
+  /// Example:
+  /// ```dart
+  /// final captured = await controller.capture();
+  /// if (captured != null) {
+  ///   final cropped = await controller.cropImage(
+  ///     captured,
+  ///     x: 100,
+  ///     y: 100,
+  ///     width: 200,
+  ///     height: 300,
+  ///   );
+  ///   print('Cropped: ${cropped.path}');
+  /// }
+  /// ```
+  ///
+  /// Parameters:
+  /// * [file] - The image file to crop
+  /// * [x] - The x-coordinate of the crop region
+  /// * [y] - The y-coordinate of the crop region
+  /// * [width] - The width of the crop region
+  /// * [height] - The height of the crop region
+  ///
+  /// Returns the cropped image file.
+  Future<XFile> cropImage(
+    XFile file, {
+    required int x,
+    required int y,
+    required int width,
+    required int height,
+  }) async {
+    final cropped = await ImageProcessor.cropImage(
+      file,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+    );
+
+    // Track temp file for cleanup
+    await _addTempFile(cropped.path);
+
+    return cropped;
   }
 }

@@ -79,10 +79,13 @@ export 'package:camera/camera.dart'
         FlashMode,
         XFile;
 
+export 'src/camera_transform.dart';
 export 'src/config.dart';
 export 'src/controller.dart';
+export 'src/crop_config.dart';
 export 'src/enums.dart';
 export 'src/guideline_cam_static.dart';
 export 'src/guideline_cam_view.dart';
 export 'src/multi_shape_config.dart';
+export 'src/processing_config.dart';
 export 'src/results.dart';

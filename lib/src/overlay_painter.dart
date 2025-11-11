@@ -58,7 +58,7 @@ import 'package:guideline_cam/src/shapes.dart';
 /// * [MultiShapeOverlayPainter], for multi-shape overlays
 /// * [createGuidelinePath], for path generation
 class OverlayPainter extends CustomPainter {
-  const OverlayPainter(this.config);
+  const OverlayPainter(this.config, {this.onBoundsCalculated});
 
   /// The configuration that defines the overlay appearance and behavior.
   ///
@@ -76,9 +76,19 @@ class OverlayPainter extends CustomPainter {
   /// * [GuidelineOverlayConfig], for configuration options
   final GuidelineOverlayConfig config;
 
+  /// Callback to report the calculated bounds of the overlay.
+  /// Used for guideline-based cropping.
+  final void Function(Rect bounds, Size size)? onBoundsCalculated;
+
   @override
   void paint(Canvas canvas, Size size) {
     final guidelinePath = createGuidelinePath(size, config);
+
+    // Calculate and report the bounds and screen size for cropping
+    if (onBoundsCalculated != null) {
+      final bounds = guidelinePath.getBounds();
+      onBoundsCalculated!(bounds, size);
+    }
 
     final background = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));

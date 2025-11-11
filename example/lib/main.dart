@@ -41,7 +41,7 @@ class _DemoHomePageState extends State<DemoHomePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _controller = GuidelineCamController();
     _controller.initialize();
     _tabController.addListener(() {
@@ -130,8 +130,8 @@ class _DemoHomePageState extends State<DemoHomePage>
 
   @override
   Widget build(BuildContext context) {
-    final bool showFab = ![0, 3].contains(
-        _tabController.index); // Hide on Static API & Overlay Builder tab
+    final bool showFab = ![0, 3, 6].contains(_tabController
+        .index); // Hide on Static API, Overlay Builder & Crop/Processing tab
     return Scaffold(
       appBar: AppBar(
         title: const Text('GuidelineCam Example'),
@@ -145,6 +145,7 @@ class _DemoHomePageState extends State<DemoHomePage>
             Tab(text: 'Overlay Builder'),
             Tab(text: 'Multi/Nested'),
             Tab(text: 'Instruction'),
+            Tab(text: 'Crop & Process'),
           ],
         ),
       ),
@@ -225,6 +226,10 @@ class _DemoHomePageState extends State<DemoHomePage>
                   );
                 }
               },
+              maskColor: _maskColor,
+              frameColor: _frameColor),
+          _CropProcessingDemo(
+              controller: _controller,
               maskColor: _maskColor,
               frameColor: _frameColor),
         ],
@@ -965,6 +970,696 @@ class _ShapeButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       ),
+    );
+  }
+}
+
+class _CropProcessingDemo extends StatefulWidget {
+  const _CropProcessingDemo({
+    required this.controller,
+    required this.maskColor,
+    required this.frameColor,
+  });
+
+  final GuidelineCamController controller;
+  final Color maskColor;
+  final Color frameColor;
+
+  @override
+  State<_CropProcessingDemo> createState() => _CropProcessingDemoState();
+}
+
+enum DemoShape { roundedRect, circle, oval, nested }
+
+class _CropProcessingDemoState extends State<_CropProcessingDemo> {
+  ImageProcessingConfig? _processingConfig; // Default to null (None)
+  DemoShape _selectedShape = DemoShape.roundedRect;
+  CropStrategy _cropStrategy = CropStrategy.outermost;
+  int _selectedImageIndex = 0; // 0=final, 1=original, 2=cropped, 3=processed
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        GuidelineCamBuilder(
+          controller: widget.controller,
+          guideline: _buildGuidelineConfig(),
+          onCapture: (result) {
+            setState(() {
+              _selectedImageIndex = 0;
+            });
+            _showResultDialog(result);
+          },
+        ),
+        // Settings overlay
+        Positioned(
+          top: 16,
+          left: 16,
+          right: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Crop & Processing Settings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildShapeSelector(),
+                    const SizedBox(height: 8),
+                    if (_selectedShape == DemoShape.nested) ...[
+                      _buildCropStrategySelector(),
+                      const SizedBox(height: 8),
+                    ],
+                    _buildProcessingPresetSelector(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Capture button
+        Positioned(
+          bottom: 24,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: FloatingActionButton.extended(
+              onPressed: () async {
+                final result = await widget.controller.captureWithProcessing();
+                if (result != null && mounted) {
+                  setState(() {
+                    _selectedImageIndex = 0;
+                  });
+                  _showResultDialog(result);
+                }
+              },
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Capture & Process'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  GuidelineOverlayConfig _buildGuidelineConfig() {
+    switch (_selectedShape) {
+      case DemoShape.roundedRect:
+        return GuidelineOverlayConfig(
+          shape: GuidelineShape.roundedRect,
+          aspectRatio: 1.586, // ID card ratio
+          frameColor: widget.frameColor,
+          maskColor: widget.maskColor,
+          borderRadius: 16.0,
+          cropConfig: const CropConfig(
+            padding: 5.0,
+          ),
+          processing: _processingConfig,
+        );
+      case DemoShape.circle:
+        return GuidelineOverlayConfig(
+          shape: GuidelineShape.circle,
+          aspectRatio: 1.0,
+          frameColor: widget.frameColor,
+          maskColor: widget.maskColor,
+          cropConfig: const CropConfig(
+            padding: 5.0,
+          ),
+          processing: _processingConfig,
+        );
+      case DemoShape.oval:
+        return GuidelineOverlayConfig(
+          shape: GuidelineShape.oval,
+          aspectRatio: 1.414, // A4 ratio
+          frameColor: widget.frameColor,
+          maskColor: widget.maskColor,
+          cropConfig: const CropConfig(
+            padding: 5.0,
+          ),
+          processing: _processingConfig,
+        );
+      case DemoShape.nested:
+        // Multi-shape configuration: Oval for face + Rounded rect for ID card
+        return GuidelineOverlayConfig(
+          shapes: [
+            // Oval for face (top)
+            const ShapeConfig(
+              shape: GuidelineShape.oval,
+              bounds: Rect.fromLTWH(100, 120, 190, 230), // Portrait oval
+              aspectRatio: 0.826, // Portrait ratio for face
+              frameColor: Colors.green,
+            ),
+            // Rounded rectangle for ID card (bottom)
+            ShapeConfig(
+              shape: GuidelineShape.roundedRect,
+              bounds:
+                  const Rect.fromLTWH(40, 400, 310, 195), // ID card dimensions
+              aspectRatio: 1.586, // Standard ID card ratio
+              frameColor: widget.frameColor,
+              borderRadius: 12.0,
+            ),
+          ],
+          maskColor: widget.maskColor,
+          cropConfig: CropConfig(
+            strategy: _cropStrategy,
+          ),
+          processing: _processingConfig,
+        );
+    }
+  }
+
+  Widget _buildShapeSelector() {
+    return Row(
+      children: [
+        const Text(
+          'Shape: ',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            children: [
+              _buildShapeChip('Rounded', DemoShape.roundedRect),
+              _buildShapeChip('Circle', DemoShape.circle),
+              _buildShapeChip('Oval', DemoShape.oval),
+              _buildShapeChip('Nested', DemoShape.nested),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShapeChip(String label, DemoShape shape) {
+    final isSelected = _selectedShape == shape;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedShape = shape),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.purple : Colors.white24,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCropStrategySelector() {
+    return Row(
+      children: [
+        const Text(
+          'Strategy: ',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            children: [
+              _buildStrategyChip('Outermost', CropStrategy.outermost),
+              _buildStrategyChip('Each Shape', CropStrategy.eachShape),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStrategyChip(String label, CropStrategy strategy) {
+    final isSelected = _cropStrategy == strategy;
+    return GestureDetector(
+      onTap: () => setState(() => _cropStrategy = strategy),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.green : Colors.white24,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProcessingPresetSelector() {
+    return Row(
+      children: [
+        const Text(
+          'Process: ',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            children: [
+              _buildProcessingChip('None', null),
+              _buildProcessingChip(
+                  'Document', ImageProcessingConfig.documentScan),
+              _buildProcessingChip('ID Card', ImageProcessingConfig.idCard),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProcessingChip(String label, ImageProcessingConfig? config) {
+    final isSelected = _processingConfig == config;
+    return GestureDetector(
+      onTap: () => setState(() => _processingConfig = config),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.amber : Colors.white24,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white70,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResultDialog(GuidelineCaptureResult result) {
+    // Check if we have multiple cropped images (eachShape strategy)
+    if (result.croppedFiles.length > 1) {
+      _showMultiImageDialog(result);
+    } else {
+      _showSingleImageDialog(result);
+    }
+  }
+
+  void _showSingleImageDialog(GuidelineCaptureResult result) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            XFile displayFile = result.file;
+            String displayLabel = 'Final Image';
+
+            switch (_selectedImageIndex) {
+              case 1:
+                displayFile = result.originalFile ?? result.file;
+                displayLabel = 'Original';
+                break;
+              case 2:
+                displayFile = result.croppedFiles.isNotEmpty
+                    ? result.croppedFiles.first
+                    : result.file;
+                displayLabel = 'Cropped';
+                break;
+              case 3:
+                displayFile = result.processedFile ?? result.file;
+                displayLabel = 'Processed';
+                break;
+              default:
+                displayFile = result.file;
+                displayLabel = 'Final Image';
+            }
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+              content: SizedBox(
+                width: 350,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.photo_camera, color: Colors.teal),
+                        const SizedBox(width: 8),
+                        Text(
+                          displayLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 250,
+                        child: Image.file(
+                          File(displayFile.path),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox(
+                            height: 250,
+                            child: Center(
+                              child: Icon(Icons.image_not_supported),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Image Versions:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildVersionChip(
+                          'Final',
+                          0,
+                          Icons.check_circle,
+                          setDialogState,
+                        ),
+                        if (result.originalFile != null)
+                          _buildVersionChip(
+                            'Original',
+                            1,
+                            Icons.image,
+                            setDialogState,
+                          ),
+                        if (result.croppedFiles.isNotEmpty)
+                          _buildVersionChip(
+                            'Cropped',
+                            2,
+                            Icons.crop,
+                            setDialogState,
+                          ),
+                        if (result.processedFile != null)
+                          _buildVersionChip(
+                            'Processed',
+                            3,
+                            Icons.auto_fix_high,
+                            setDialogState,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    _buildResultInfo(result),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildVersionChip(
+    String label,
+    int index,
+    IconData icon,
+    StateSetter setDialogState,
+  ) {
+    final isSelected = _selectedImageIndex == index;
+    return GestureDetector(
+      onTap: () => setDialogState(() => _selectedImageIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.teal : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : Colors.grey.shade700,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultInfo(GuidelineCaptureResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Capture Info:',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildInfoRow(
+          'Processing',
+          _processingConfig == null ? 'None' : 'Applied',
+        ),
+        _buildInfoRow('Cropped Files', '${result.croppedFiles.length}'),
+        _buildInfoRow(
+          'Has Original',
+          result.originalFile != null ? 'Yes' : 'No',
+        ),
+        _buildInfoRow(
+          'Has Processed',
+          result.processedFile != null ? 'Yes' : 'No',
+        ),
+        _buildInfoRow('Camera', result.lens.name),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMultiImageDialog(GuidelineCaptureResult result) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.all(12),
+          content: SizedBox(
+            width: 350,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.photo_library, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(
+                      'Multiple Cropped Images',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${result.croppedFiles.length} shapes detected',
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 12),
+                // Display all cropped images
+                SizedBox(
+                  height: 400,
+                  child: ListView.builder(
+                    itemCount: result.croppedFiles.length,
+                    itemBuilder: (context, index) {
+                      final croppedFile = result.croppedFiles[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Shape ${index + 1}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  index == 0 ? 'Face (Oval)' : 'ID Card (Rect)',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: double.infinity,
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Image.file(
+                                  File(croppedFile.path),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const SizedBox(
+                                    height: 180,
+                                    child: Center(
+                                      child: Icon(Icons.image_not_supported),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 8),
+                _buildMultiImageInfo(result),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMultiImageInfo(GuidelineCaptureResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Capture Info:',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildInfoRow('Strategy', 'Each Shape'),
+        _buildInfoRow('Total Shapes', '${result.croppedFiles.length}'),
+        _buildInfoRow(
+          'Processing',
+          _processingConfig == null ? 'None' : 'Applied',
+        ),
+        _buildInfoRow('Camera', result.lens.name),
+      ],
     );
   }
 }

@@ -43,6 +43,8 @@ class _GuidelineCamPageState extends State<GuidelineCamPage> {
     _controller = GuidelineCamController(
       initialCameraDirection: widget.cameraDirection,
     );
+    // Set the config for cropping and processing
+    _controller.setConfig(widget.guideline);
     _initializeCamera();
   }
 
@@ -65,9 +67,11 @@ class _GuidelineCamPageState extends State<GuidelineCamPage> {
 
   Future<void> _handleCapture() async {
     try {
-      final result = await _controller.capture();
+      final result = await _controller.captureWithProcessing();
       if (result != null && mounted) {
-        Navigator.of(context).pop(result);
+        // Return the final processed/cropped file, or original if no processing
+        Navigator.of(context).pop(result.processedFile ??
+            (result.croppedFiles.isNotEmpty ? result.croppedFiles.first : result.file));
       }
     } catch (e) {
       // Handle capture error silently or show a snackbar

@@ -1,6 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:guideline_cam/src/config.dart';
+import 'package:guideline_cam/src/crop_config.dart';
 import 'package:guideline_cam/src/enums.dart';
 import 'package:guideline_cam/src/guideline_cam_page.dart' as internal;
 
@@ -12,12 +13,34 @@ import 'package:guideline_cam/src/guideline_cam_page.dart' as internal;
 /// ## Usage Example
 ///
 /// ```dart
-/// // Simple capture with default settings
+/// // Simple capture with default settings (no crop or processing)
 /// final XFile? photo = await GuidelineCam.takePhoto(context: context);
 ///
 /// if (photo != null) {
 ///   print('Photo captured: ${photo.path}');
 /// }
+///
+/// // Capture with automatic cropping enabled
+/// final XFile? photo = await GuidelineCam.takePhoto(
+///   context: context,
+///   enableCrop: true,
+///   guideline: GuidelineOverlayConfig(
+///     shape: GuidelineShape.roundedRect,
+///     aspectRatio: 1.586, // ID card ratio
+///   ),
+/// );
+///
+/// // Capture with both crop and processing
+/// final XFile? photo = await GuidelineCam.takePhoto(
+///   context: context,
+///   enableCrop: true,
+///   enableProcessing: true,
+///   guideline: GuidelineOverlayConfig(
+///     shape: GuidelineShape.roundedRect,
+///     aspectRatio: 1.586,
+///     processing: ImageProcessingConfig.idCard,
+///   ),
+/// );
 ///
 /// // Capture with custom overlay configuration
 /// final XFile? photo = await GuidelineCam.takePhoto(
@@ -27,36 +50,6 @@ import 'package:guideline_cam/src/guideline_cam_page.dart' as internal;
 ///     frameColor: Colors.blue,
 ///     maskColor: Colors.black54,
 ///   ),
-/// );
-///
-/// // Capture with custom instructions
-/// final XFile? photo = await GuidelineCam.takePhoto(
-///   context: context,
-///   guideline: GuidelineOverlayConfig(
-///     shape: GuidelineShape.roundedRect,
-///     aspectRatio: 1.586, // ID card ratio
-///   ),
-///   instructionBuilder: (context, state) {
-///     String message;
-///     switch (state) {
-///       case GuidelineState.ready:
-///         message = 'Position your ID card within the frame';
-///         break;
-///       default:
-///         message = '';
-///     }
-///     return Container(
-///       padding: const EdgeInsets.all(16),
-///       decoration: BoxDecoration(
-///         color: Colors.black54,
-///         borderRadius: BorderRadius.circular(8),
-///       ),
-///       child: Text(
-///         message,
-///         style: const TextStyle(color: Colors.white),
-///       ),
-///     );
-///   },
 /// );
 /// ```
 ///
@@ -105,6 +98,10 @@ class GuidelineCam {
   /// * [backgroundColor] - Background color for the camera page. Defaults to `Colors.black`.
   /// * [instructionBuilder] - Optional builder for custom instruction widgets.
   ///   If provided, displays contextual instructions based on camera state.
+  /// * [enableCrop] - Whether to enable automatic cropping to guideline boundaries.
+  ///   Defaults to `false`. When enabled, always uses outermost crop strategy.
+  /// * [enableProcessing] - Whether to enable automatic image processing.
+  ///   Defaults to `false`. Configure processing via `guideline.processing`.
   ///
   /// Returns an [XFile] containing the captured image, or `null` if the user
   /// cancels or an error occurs.
@@ -155,11 +152,27 @@ class GuidelineCam {
     bool showCameraSwitch = true,
     Color backgroundColor = Colors.black,
     Widget Function(BuildContext, GuidelineState)? instructionBuilder,
+    bool enableCrop = false,
+    bool enableProcessing = false,
   }) async {
+    // Create modified config based on enableCrop and enableProcessing
+    final baseConfig = guideline ?? const GuidelineOverlayConfig();
+    final effectiveConfig = baseConfig.copyWith(
+      // Override crop config based on enableCrop parameter
+      cropConfig: enableCrop
+          ? baseConfig.cropConfig.copyWith(
+              enabled: true,
+              strategy: CropStrategy.outermost, // Force outermost for single file result
+            )
+          : const CropConfig(enabled: false),
+      // Override processing config based on enableProcessing parameter
+      processing: enableProcessing ? baseConfig.processing : null,
+    );
+
     final result = await Navigator.of(context, rootNavigator: true).push<XFile>(
       MaterialPageRoute(
         builder: (context) => internal.GuidelineCamPage(
-          guideline: guideline ?? const GuidelineOverlayConfig(),
+          guideline: effectiveConfig,
           cameraDirection: cameraDirection,
           showFlashToggle: showFlashToggle,
           showCameraSwitch: showCameraSwitch,
