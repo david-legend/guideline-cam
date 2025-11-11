@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:guideline_cam/src/config.dart';
 import 'package:guideline_cam/src/crop_config.dart';
+import 'package:guideline_cam/src/debug_logger.dart';
 import 'package:guideline_cam/src/enums.dart';
 import 'package:guideline_cam/src/guideline_cam_page.dart' as internal;
 
@@ -185,4 +186,68 @@ class GuidelineCam {
 
     return result;
   }
+
+  /// Configure logging behavior for the guideline_cam package
+  ///
+  /// ## Zero Configuration Required
+  ///
+  /// The package works perfectly out-of-the-box with intelligent defaults:
+  ///
+  /// **Debug Mode:** Detailed logging for development (debug, info, warn, error)
+  /// **Release Mode:** Only critical errors, no console pollution
+  ///
+  /// ## Optional Customization
+  ///
+  /// Use this method only if you need custom logging behavior. Call this method
+  /// early in your app's lifecycle (e.g., in main() before runApp()).
+  ///
+  /// ## Examples
+  ///
+  /// ```dart
+  /// // OPTIONAL: Override intelligent defaults
+  ///
+  /// // For production - only log warnings and errors
+  /// GuidelineCam.configureLogging(LoggerConfig.production);
+  ///
+  /// // For development - detailed logging
+  /// GuidelineCam.configureLogging(LoggerConfig.development);
+  ///
+  /// // For debugging specific issues - verbose logging
+  /// GuidelineCam.configureLogging(LoggerConfig.verbose);
+  ///
+  /// // Custom configuration
+  /// GuidelineCam.configureLogging(LoggerConfig(
+  ///   enabled: true,
+  ///   level: LogLevel.info,
+  ///   includeStackTrace: false,
+  ///   logInRelease: false,
+  ///   customLogger: (message) => MyLogger.log(message),
+  /// ));
+  /// ```
+  ///
+  /// ## Default Behavior Without Configuration
+  ///
+  /// - **No setup required** - works out-of-the-box
+  /// - **Debug builds**: Shows helpful debugging information
+  /// - **Release builds**: Silent unless critical errors occur
+  /// - **Zero performance impact** when logging is disabled
+  ///
+  /// See also:
+  /// * [LoggerConfig], for available configuration options
+  /// * [LogLevel], for available log levels
+  static void configureLogging(LoggerConfig config) {
+    GuidelineCamLogger.configure(config);
+  }
+
+  /// Get current logging configuration
+  static LoggerConfig get loggingConfig => GuidelineCamLogger.config;
+
+  /// Enable performance logging for monitoring operation timing
+  ///
+  /// When enabled, the package will log timing information for operations
+  /// like image capture, cropping, and processing. Useful for performance
+  /// analysis and optimization.
+  ///
+  /// Set to `true` to enable performance logging, `false` to disable.
+  static bool enablePerformanceTiming = false;
 }

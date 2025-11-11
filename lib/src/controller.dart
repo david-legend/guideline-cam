@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:synchronized/synchronized.dart';
 import 'package:guideline_cam/src/config.dart';
 import 'package:guideline_cam/src/crop_config.dart';
+import 'package:guideline_cam/src/debug_logger.dart';
 import 'package:guideline_cam/src/enums.dart';
 import 'package:guideline_cam/src/image_processor.dart';
 import 'package:guideline_cam/src/processing_config.dart';
@@ -372,14 +373,10 @@ class GuidelineCamController extends ChangeNotifier {
         final file = File(path);
         if (file.existsSync()) {
           file.deleteSync();
-          if (kDebugMode) {
-            print('Cleaned up temp file: $path');
-          }
+          GuidelineCamLogger.verbose('Cleaned up temp file: $path');
         }
       } catch (e) {
-        if (kDebugMode) {
-          print('Failed to delete temp file $path: $e');
-        }
+        GuidelineCamLogger.warn('Failed to delete temp file: $path', error: e);
         // Continue cleanup even if one file fails
       }
     }
@@ -669,9 +666,7 @@ class GuidelineCamController extends ChangeNotifier {
       return result;
     } catch (e) {
       // Operation was cancelled or failed
-      if (kDebugMode) {
-        print('Capture operation cancelled or failed: $e');
-      }
+      GuidelineCamLogger.warn('Capture operation cancelled or failed', error: e);
       return null;
     } finally {
       _processingOperation = null;
@@ -712,9 +707,7 @@ class GuidelineCamController extends ChangeNotifier {
         }
       } catch (e) {
         cropError = e is Exception ? e : Exception('Cropping failed: $e');
-        if (kDebugMode) {
-          print('Cropping failed: $e');
-        }
+        GuidelineCamLogger.error('Cropping failed', error: e);
         // Continue with original file if cropping fails
       }
     }
@@ -734,9 +727,7 @@ class GuidelineCamController extends ChangeNotifier {
         await _addTempFile(processedFile.path);
       } catch (e) {
         processingError = e is Exception ? e : Exception('Processing failed: $e');
-        if (kDebugMode) {
-          print('Processing failed: $e');
-        }
+        GuidelineCamLogger.error('Processing failed', error: e);
         // Continue with unprocessed file if processing fails
       }
     }
@@ -811,21 +802,13 @@ class GuidelineCamController extends ChangeNotifier {
           _shapeBounds != null &&
           _shapeBounds!.isNotEmpty) {
         // Crop each shape individually
-        if (kDebugMode) {
-          print('\n=== MULTI-CROP DEBUG (Each Shape) ===');
-          print('Original image: ${image.width}×${image.height}');
-          print('Number of shapes: ${_shapeBounds!.length}');
-        }
+        GuidelineCamLogger.debug('Starting multi-crop operation with ${_shapeBounds!.length} shapes');
+        GuidelineCamLogger.verbose('Multi-crop - Image dimensions: ${image.width}×${image.height}');
 
         for (int i = 0; i < _shapeBounds!.length; i++) {
           final shapeBound = _shapeBounds![i];
 
-          if (kDebugMode) {
-            print(
-                '\n--- Shape ${i + 1} ---');
-            print(
-                'Screen bounds: ${shapeBound.width.toInt()}×${shapeBound.height.toInt()} at (${shapeBound.left.toInt()}, ${shapeBound.top.toInt()})');
-          }
+          GuidelineCamLogger.verbose('Shape ${i + 1} - Screen bounds: ${shapeBound.width.toInt()}×${shapeBound.height.toInt()} at (${shapeBound.left.toInt()}, ${shapeBound.top.toInt()})');
 
           // Map shape coordinates to image coordinates
           var cropX = (shapeBound.left * scale + offsetX - config.padding)
@@ -853,10 +836,7 @@ class GuidelineCamController extends ChangeNotifier {
             );
           }
 
-          if (kDebugMode) {
-            print(
-                'Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
-          }
+          GuidelineCamLogger.verbose('Shape ${i + 1} - Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
 
           // Crop the shape
           final croppedImage = img.copyCrop(
@@ -867,10 +847,7 @@ class GuidelineCamController extends ChangeNotifier {
             height: cropHeight.round(),
           );
 
-          if (kDebugMode) {
-            print(
-                'Result: ${croppedImage.width}×${croppedImage.height}');
-          }
+          GuidelineCamLogger.verbose('Shape ${i + 1} - Result: ${croppedImage.width}×${croppedImage.height}');
 
           // Save to file
           final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
@@ -886,24 +863,13 @@ class GuidelineCamController extends ChangeNotifier {
           results.add(XFile(tempFile.path));
         }
 
-        if (kDebugMode) {
-          print('======================\n');
-        }
+        GuidelineCamLogger.debug('Multi-crop operation completed successfully');
       } else {
         // Crop using combined bounds (outermost strategy)
-        if (kDebugMode) {
-          print('\n=== AUTO-CROP DEBUG ===');
-          print('Original image: ${image.width}×${image.height}');
-          print(
-              'Screen size: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
-          print('Sensor orientation: $sensorOrientation°');
-          print(
-              'Guideline (screen): ${_overlayBounds!.width.toInt()}×${_overlayBounds!.height.toInt()} at (${_overlayBounds!.left.toInt()}, ${_overlayBounds!.top.toInt()})');
-          print(
-              'Guideline aspect ratio: ${(_overlayBounds!.width / _overlayBounds!.height).toStringAsFixed(3)}');
-          print('Scale: X=$scaleX, Y=$scaleY, uniform=$scale');
-          print('Offset: ($offsetX, $offsetY)');
-        }
+        GuidelineCamLogger.debug('Starting auto-crop operation');
+        GuidelineCamLogger.verbose('Auto-crop - Image: ${image.width}×${image.height}, Screen: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
+        GuidelineCamLogger.verbose('Auto-crop - Sensor orientation: ${sensorOrientation}°');
+        GuidelineCamLogger.verbose('Auto-crop - Scale: X=$scaleX, Y=$scaleY, uniform=$scale, Offset: ($offsetX, $offsetY)');
 
         // STEP 4: Map guideline coordinates to image coordinates
         var cropX = (_overlayBounds!.left * scale + offsetX - config.padding)
@@ -931,12 +897,8 @@ class GuidelineCamController extends ChangeNotifier {
           );
         }
 
-        if (kDebugMode) {
-          print(
-              'Crop region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
-          print(
-              'Crop aspect ratio: ${(cropWidth / cropHeight).toStringAsFixed(3)}');
-        }
+        GuidelineCamLogger.verbose('Auto-crop - Region: ${cropWidth.toInt()}×${cropHeight.toInt()} at (${cropX.toInt()}, ${cropY.toInt()})');
+      GuidelineCamLogger.verbose('Auto-crop - Aspect ratio: ${(cropWidth / cropHeight).toStringAsFixed(3)}');
 
         // STEP 5: Crop the image
         final croppedImage = img.copyCrop(
@@ -947,13 +909,7 @@ class GuidelineCamController extends ChangeNotifier {
           height: cropHeight.round(),
         );
 
-        if (kDebugMode) {
-          print(
-              'Final result: ${croppedImage.width}×${croppedImage.height}');
-          print(
-              'Final aspect ratio: ${(croppedImage.width / croppedImage.height).toStringAsFixed(3)}');
-          print('======================\n');
-        }
+        GuidelineCamLogger.verbose('Auto-crop - Result: ${croppedImage.width}×${croppedImage.height}, Aspect ratio: ${(croppedImage.width / croppedImage.height).toStringAsFixed(3)}');
 
         // Save to file
         final croppedBytes = img.encodeJpg(croppedImage, quality: defaultCropQuality);
@@ -968,10 +924,7 @@ class GuidelineCamController extends ChangeNotifier {
         results.add(XFile(tempFile.path));
       }
     } catch (e, stackTrace) {
-      if (kDebugMode) {
-        print('Auto-crop failed: $e');
-        print('Stack trace: $stackTrace');
-      }
+      GuidelineCamLogger.error('Auto-crop failed', error: e, stackTrace: stackTrace);
     }
 
     return results;

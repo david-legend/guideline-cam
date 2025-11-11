@@ -69,6 +69,7 @@
 /// * [GuidelineCamBuilder], the main widget for camera capture
 /// * [GuidelineCamController], for camera management
 /// * [GuidelineOverlayConfig], for overlay customization
+/// * [GuidelineCamLogger], for debug logging and performance monitoring
 library;
 
 export 'package:camera/camera.dart'
@@ -83,6 +84,7 @@ export 'src/camera_transform.dart';
 export 'src/config.dart';
 export 'src/controller.dart';
 export 'src/crop_config.dart';
+export 'src/debug_logger.dart';
 export 'src/enums.dart';
 export 'src/guideline_cam_static.dart';
 export 'src/guideline_cam_view.dart';

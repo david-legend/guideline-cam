@@ -19,6 +19,7 @@ Supports **rectangles, rounded rectangles, circles, and ovals** with **automatic
 - 🎮 **Builder Pattern**: Complete control over UI components
 - 🪶 **Lightweight**: Pure Dart, minimal dependencies
 - 🔒 **Robust**: Thread-safe, cancellable operations, comprehensive error handling
+- 🔧 **Zero-Configuration Logging**: Intelligent debug/production logging
 
 ---
 
@@ -41,7 +42,7 @@ Supports **rectangles, rounded rectangles, circles, and ovals** with **automatic
 
 ```yaml
 dependencies:
-  guideline_cam: ^0.0.4
+  guideline_cam: ^0.1.0
 ```
 
 ### 2. Add permissions
@@ -202,7 +203,7 @@ guideline: GuidelineOverlayConfig(
 
 ## ✂️ Auto-Crop & Image Processing
 
-**New in v0.0.4!** Automatically crop and enhance captured images.
+**New in v0.1.0!** Automatically crop and enhance captured images.
 
 ### Auto-Crop Modes
 
@@ -583,6 +584,32 @@ Nested shapes support unlimited depth - children can have their own children, cr
 
 ---
 
+## 🔧 Debug Logging & Performance
+
+### Zero-Configuration Required
+
+The package includes intelligent logging that works out-of-the-box:
+
+- **Debug Mode**: Shows helpful debug, info, and warning messages
+- **Release Mode**: Only critical errors (no console pollution)
+
+### Optional Configuration
+
+```dart
+// Configure custom logging (optional)
+GuidelineCam.configureLogging(LoggerConfig.production);
+
+// Enable performance timing
+GuidelineCam.enablePerformanceTiming = true;
+
+// Custom logger integration
+GuidelineCam.configureLogging(LoggerConfig(
+  customLogger: (message) => FirebaseCrashlytics.instance.log(message),
+));
+```
+
+The logging system requires **zero setup** and automatically adapts to your build environment.
+
 ## Troubleshooting
 
 - **Flash not supported**: The flash toggle will be hidden if the device does not support it.
@@ -603,8 +630,8 @@ static Future<XFile?> takePhoto({
   bool showCameraSwitch = true,
   Color backgroundColor = Colors.black,
   Widget Function(BuildContext, GuidelineState)? instructionBuilder,
-  bool enableCrop = false,        // NEW in v0.0.4
-  bool enableProcessing = false,  // NEW in v0.0.4
+  bool enableCrop = false,        // NEW in v0.1.0
+  bool enableProcessing = false,  // NEW in v0.1.0
 })
 ```
 
