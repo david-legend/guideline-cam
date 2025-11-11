@@ -868,7 +868,7 @@ class GuidelineCamController extends ChangeNotifier {
         // Crop using combined bounds (outermost strategy)
         GuidelineCamLogger.debug('Starting auto-crop operation');
         GuidelineCamLogger.verbose('Auto-crop - Image: ${image.width}×${image.height}, Screen: ${_screenSize!.width.toInt()}×${_screenSize!.height.toInt()}');
-        GuidelineCamLogger.verbose('Auto-crop - Sensor orientation: ${sensorOrientation}°');
+        GuidelineCamLogger.verbose('Auto-crop - Sensor orientation: $sensorOrientation°');
         GuidelineCamLogger.verbose('Auto-crop - Scale: X=$scaleX, Y=$scaleY, uniform=$scale, Offset: ($offsetX, $offsetY)');
 
         // STEP 4: Map guideline coordinates to image coordinates

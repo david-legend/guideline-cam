@@ -1,3 +1,6 @@
+# 0.1.0+1
+- Update dependencies `image: ^4.2.0`
+
 # 0.1.0
 
 ## ✨ Auto‑Crop, Image Processing, and Smart Logging

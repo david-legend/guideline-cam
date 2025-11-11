@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/foundation.dart';
 
 /// Professional logging system for guideline_cam package
@@ -139,7 +141,7 @@ class GuidelineCamLogger {
         print(message);
       } else if (_config.logInRelease) {
         // In release, use more sophisticated logging if available
-        print(message);
+        log(message);
       }
     }
 

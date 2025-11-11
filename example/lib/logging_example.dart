@@ -22,7 +22,7 @@ void configureLoggingExample() {
     customLogger: (message) {
       // Integrate with your logging framework
       // e.g., Firebase Crashlytics, Sentry, or custom analytics
-      print('[CUSTOM] $message');
+      debugPrint('[CUSTOM] $message');
     },
   ));
 
