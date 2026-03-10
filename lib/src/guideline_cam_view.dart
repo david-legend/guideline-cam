@@ -174,6 +174,7 @@ class GuidelineCamBuilder extends StatefulWidget {
   const GuidelineCamBuilder({
     super.key,
     required this.controller,
+    this.fit = StackFit.loose, 
     this.guideline = const GuidelineOverlayConfig(),
     this.showFlashToggle = true,
     this.showCameraSwitch = true,
@@ -185,6 +186,7 @@ class GuidelineCamBuilder extends StatefulWidget {
     this.onError,
   });
 
+final StackFit fit;
   /// The controller that manages the camera lifecycle and capture functionality.
   ///
   /// This controller must be initialized before the widget can display the camera
@@ -528,7 +530,7 @@ class _GuidelineCamBuilderState extends State<GuidelineCamBuilder> {
     return widget.controller.cameraController != null &&
             widget.controller.cameraController!.value.isInitialized
         ? Stack(
-            fit: StackFit.expand,
+            fit: widget.fit,
             children: [
               CameraPreview(widget.controller.cameraController!),
               _buildOverlay(),

@@ -127,6 +127,7 @@ class GuidelineCamController extends ChangeNotifier {
 
   /// The current camera lens direction.
   CameraLensDirection _lensDirection = CameraLensDirection.back;
+  ResolutionPreset _resolutionPreset = ResolutionPreset.medium;
 
   /// The current guideline configuration (for cropping and processing).
   GuidelineOverlayConfig? _config;
@@ -180,7 +181,9 @@ class GuidelineCamController extends ChangeNotifier {
   /// ```
   GuidelineCamController({
     CameraLensDirection initialCameraDirection = CameraLensDirection.back,
-  }) : _lensDirection = initialCameraDirection;
+    ResolutionPreset resolutionPreset = ResolutionPreset.medium,
+  })  : _lensDirection = initialCameraDirection,
+        _resolutionPreset = resolutionPreset;
 
   /// The underlying camera controller from the camera package.
   ///
@@ -322,7 +325,7 @@ class GuidelineCamController extends ChangeNotifier {
 
       _cameraController = CameraController(
         camera,
-        ResolutionPreset.medium,
+        _resolutionPreset,
         enableAudio: false,
       );
 
